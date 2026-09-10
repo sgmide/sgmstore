@@ -129,54 +129,7 @@ jobs:
 
 
       # ==========================================
-      # CREATE APK FILE NAME
-      # ==========================================
-
-      - name: Create APK filename
-        id: filename
-        shell: bash
-        run: |
-
-          LABEL="${{ steps.app.outputs.LABEL }}"
-          PACKAGE="${{ steps.package.outputs.PACKAGE }}"
-
-          # If label is a resource reference such as
-          # @string/app_name, use package name.
-          if [[ "$LABEL" == @* ]]; then
-            LABEL="$PACKAGE"
-          fi
-
-          # Lowercase
-          LABEL=$(echo "$LABEL" | tr '[:upper:]' '[:lower:]')
-
-          # Spaces -> hyphens
-          LABEL=$(echo "$LABEL" | sed 's/[[:space:]]\+/-/g')
-
-          # Underscores -> hyphens
-          LABEL=$(echo "$LABEL" | sed 's/_\+/-/g')
-
-          # Remove invalid filename characters
-          LABEL=$(echo "$LABEL" | sed 's/[^a-z0-9.-]//g')
-
-          # Remove duplicate hyphens
-          LABEL=$(echo "$LABEL" | sed 's/-\{2,\}/-/g')
-
-          # Remove leading/trailing hyphens
-          LABEL=$(echo "$LABEL" | sed 's/^-//; s/-$//')
-
-          if [ -z "$LABEL" ]; then
-            LABEL="$PACKAGE"
-          fi
-
-          APK_NAME="${LABEL}.apk"
-
-          echo "APK name: $APK_NAME"
-
-          echo "APK_NAME=$APK_NAME" >> "$GITHUB_OUTPUT"
-
-
-      # ==========================================
-      # BUILD UNIVERSAL APK
+      # BUILD UNSIGNED UNIVERSAL APK
       # ==========================================
 
       - name: Build universal APK
@@ -194,14 +147,18 @@ jobs:
             exit 1
           fi
 
+          echo "app.apks created successfully."
+
 
       # ==========================================
-      # EXTRACT APK
+      # EXTRACT UNIVERSAL APK
       # ==========================================
 
-      - name: Extract APK
+      - name: Extract universal APK
         shell: bash
         run: |
+
+          rm -rf extracted
 
           mkdir -p extracted
 
@@ -214,12 +171,131 @@ jobs:
             exit 1
           fi
 
-          mv \
+          cp \
             extracted/universal.apk \
-            "${{ steps.filename.outputs.APK_NAME }}"
+            universal.apk
 
-          echo "Generated APK:"
-          ls -lh "${{ steps.filename.outputs.APK_NAME }}"
+          echo "Universal APK created:"
+          ls -lh universal.apk
+
+
+      # ==========================================
+      # READ APK LABEL
+      # ==========================================
+
+      - name: Install Android SDK tools
+        run: |
+
+          yes | sdkmanager \
+            "build-tools;35.0.0"
+
+
+      - name: Get APK application label
+        id: apk_label
+        shell: bash
+        run: |
+
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+
+          if [ ! -f "$AAPT" ]; then
+            echo "aapt not found."
+            exit 1
+          fi
+
+          APK_LABEL=$(
+            "$AAPT" dump badging universal.apk |
+            sed -n "s/^application-label:'\(.*\)'/\1/p" |
+            head -n 1
+          )
+
+          APK_LABEL=$(echo "$APK_LABEL" | xargs)
+
+          if [ -z "$APK_LABEL" ]; then
+            APK_LABEL="${{ steps.app.outputs.LABEL }}"
+          fi
+
+          if [ -z "$APK_LABEL" ]; then
+            APK_LABEL="${{ steps.package.outputs.PACKAGE }}"
+          fi
+
+          echo "Resolved application label:"
+          echo "$APK_LABEL"
+
+          echo "APK_LABEL=$APK_LABEL" >> "$GITHUB_OUTPUT"
+
+
+      # ==========================================
+      # CREATE APK FILENAME
+      # ==========================================
+
+      - name: Create APK filename
+        id: filename
+        shell: bash
+        run: |
+
+          LABEL="${{ steps.apk_label.outputs.APK_LABEL }}"
+          PACKAGE="${{ steps.package.outputs.PACKAGE }}"
+
+          if [ -z "$LABEL" ]; then
+            LABEL="$PACKAGE"
+          fi
+
+          # Lowercase
+          LABEL=$(echo "$LABEL" | tr '[:upper:]' '[:lower:]')
+
+          # Spaces -> hyphens
+          LABEL=$(echo "$LABEL" |
+            sed 's/[[:space:]]\+/-/g')
+
+          # Underscores -> hyphens
+          LABEL=$(echo "$LABEL" |
+            sed 's/_\+/-/g')
+
+          # Remove invalid characters
+          LABEL=$(echo "$LABEL" |
+            sed 's/[^a-z0-9.-]//g')
+
+          # Duplicate hyphens
+          LABEL=$(echo "$LABEL" |
+            sed 's/-\{2,\}/-/g')
+
+          # Leading/trailing hyphens
+          LABEL=$(echo "$LABEL" |
+            sed 's/^-//; s/-$//')
+
+          if [ -z "$LABEL" ]; then
+            LABEL="$PACKAGE"
+          fi
+
+          APK_NAME="${LABEL}.apk"
+
+          echo "APK filename:"
+          echo "$APK_NAME"
+
+          echo "APK_NAME=$APK_NAME" >> "$GITHUB_OUTPUT"
+
+
+      # ==========================================
+      # RENAME APK
+      # ==========================================
+
+      - name: Rename APK
+        shell: bash
+        run: |
+
+          APK_NAME="${{ steps.filename.outputs.APK_NAME }}"
+
+          mv \
+            universal.apk \
+            "$APK_NAME"
+
+          if [ ! -f "$APK_NAME" ]; then
+            echo "APK rename failed."
+            exit 1
+          fi
+
+          echo "Final APK:"
+          ls -lh "$APK_NAME"
 
 
       # ==========================================
@@ -235,7 +311,8 @@ jobs:
 
           echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
-          echo "Release version: $VERSION"
+          echo "Release version:"
+          echo "$VERSION"
 
 
       # ==========================================
@@ -248,10 +325,10 @@ jobs:
 
           tag_name: "store-${{ steps.version.outputs.VERSION }}"
 
-          name: "${{ steps.app.outputs.LABEL }} ${{ steps.version.outputs.VERSION }}"
+          name: "${{ steps.apk_label.outputs.APK_LABEL }} ${{ steps.version.outputs.VERSION }}"
 
           body: |
-            App: ${{ steps.app.outputs.LABEL }}
+            App: ${{ steps.apk_label.outputs.APK_LABEL }}
 
             Package:
             ${{ steps.package.outputs.PACKAGE }}
@@ -282,6 +359,7 @@ jobs:
 
           rm -f bundletool.jar
           rm -f app.apks
+          rm -f universal.apk
           rm -rf extracted
 
           echo "Cleanup complete."

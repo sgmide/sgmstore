@@ -2,9 +2,9 @@
   {
     "name": "Android Studio",
     "package": "com.sgmsoft.android",
-    "version": "1",
+    "version": "2",
     "size": "3.9 MB",
-    "description": "ടെസ്റ്റ് ക്രിക്കറ്റ്",
+    "description": "ടെസ്റ്റ് ക്രിക്കറ്റ് ചരിത്രത്തിലെ ഏറ്റവും വലിയ രണ്ടാമത്തെ നഗരമായ നമസ്കാരം",
     "apk": "https:\/\/github.com\/sgmide\/sgmstore\/releases\/latest\/download\/com-sgmsoft-nuhameharin.apk"
   }
 ]

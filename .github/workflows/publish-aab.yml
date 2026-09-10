@@ -130,7 +130,11 @@ jobs:
 
       # ==========================================
       # CREATE APK FILENAME
-      # SAME RULE AS AABUploadActivity
+      # PACKAGE NAME BASED
+      #
+      # com.sgmsoft.nuhameharin
+      # ->
+      # com-sgmsoft-nuhameharin.apk
       # ==========================================
 
       - name: Create APK filename
@@ -138,39 +142,59 @@ jobs:
         shell: bash
         run: |
 
-          LABEL="${{ steps.app.outputs.LABEL }}"
           PACKAGE="${{ steps.package.outputs.PACKAGE }}"
 
-          # If manifest label is a resource such as @string/app_name,
-          # use package name instead.
-          if [[ "$LABEL" == @* ]]; then
-            LABEL="$PACKAGE"
+          APK_BASE=$(echo "$PACKAGE" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's/[^a-z0-9]\+/-/g' \
+            | sed 's/^-*//; s/-*$//')
+
+          if [ -z "$APK_BASE" ]; then
+            APK_BASE="app"
           fi
 
-          LABEL=$(echo "$LABEL" | tr '[:upper:]' '[:lower:]')
+          APK_NAME="${APK_BASE}.apk"
 
-          # Replace every non-alphanumeric character with -
-          LABEL=$(echo "$LABEL" | sed 's/[^a-z0-9]\+/-/g')
-
-          # Remove leading/trailing -
-          LABEL=$(echo "$LABEL" | sed 's/^-*//; s/-*$//')
-
-          if [ -z "$LABEL" ]; then
-            LABEL="$PACKAGE"
-          fi
-
-          APK_NAME="${LABEL}.apk"
-
+          echo "Package: $PACKAGE"
           echo "APK name: $APK_NAME"
 
           echo "APK_NAME=$APK_NAME" >> "$GITHUB_OUTPUT"
 
 
       # ==========================================
-      # BUILD UNIVERSAL APK
+      # CREATE SIGNING KEYSTORE
       # ==========================================
 
-      - name: Build universal APK
+      - name: Create signing keystore
+        shell: bash
+        run: |
+
+          keytool \
+            -genkeypair \
+            -v \
+            -keystore sgmstore-release.jks \
+            -storetype JKS \
+            -alias sgmstore \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass "sgmstore123" \
+            -keypass "sgmstore123" \
+            -dname "CN=SGM Store, OU=SGM, O=SGM, L=Kannur, ST=Kerala, C=IN"
+
+          if [ ! -f sgmstore-release.jks ]; then
+            echo "Keystore creation failed."
+            exit 1
+          fi
+
+          echo "Keystore created successfully."
+
+
+      # ==========================================
+      # BUILD SIGNED UNIVERSAL APK
+      # ==========================================
+
+      - name: Build signed universal APK
         shell: bash
         run: |
 
@@ -178,6 +202,10 @@ jobs:
             --bundle="${{ steps.find_aab.outputs.AAB }}" \
             --output=app.apks \
             --mode=universal \
+            --ks=sgmstore-release.jks \
+            --ks-pass=pass:sgmstore123 \
+            --ks-key-alias=sgmstore \
+            --key-pass=pass:sgmstore123 \
             --overwrite
 
           if [ ! -f app.apks ]; then
@@ -185,9 +213,11 @@ jobs:
             exit 1
           fi
 
+          echo "Signed APKS created successfully."
+
 
       # ==========================================
-      # EXTRACT APK
+      # EXTRACT UNIVERSAL APK
       # ==========================================
 
       - name: Extract APK
@@ -214,20 +244,86 @@ jobs:
 
 
       # ==========================================
-      # VERIFY APK
+      # INSTALL ANDROID BUILD TOOLS
       # ==========================================
 
-      - name: Verify APK
+      - name: Install Android build tools
         shell: bash
         run: |
 
-          if [ ! -f "${{ steps.filename.outputs.APK_NAME }}" ]; then
+          yes | sdkmanager --licenses > /dev/null || true
+
+          sdkmanager \
+            "platform-tools" \
+            "build-tools;35.0.0"
+
+
+      # ==========================================
+      # VERIFY APK WITH APKSIGNER
+      # ==========================================
+
+      - name: Verify APK signature
+        shell: bash
+        run: |
+
+          APK="${{ steps.filename.outputs.APK_NAME }}"
+
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+
+          if [ ! -f "$APKSIGNER" ]; then
+            echo "apksigner not found."
+            exit 1
+          fi
+
+          echo "Checking APK signature..."
+
+          "$APKSIGNER" verify \
+            --verbose \
+            "$APK"
+
+          if [ $? -ne 0 ]; then
+            echo "APK signature verification failed."
+            exit 1
+          fi
+
+          echo "APK signature verification successful."
+
+
+      # ==========================================
+      # VERIFY APK ZIP
+      # ==========================================
+
+      - name: Verify APK package
+        shell: bash
+        run: |
+
+          APK="${{ steps.filename.outputs.APK_NAME }}"
+
+          if [ ! -f "$APK" ]; then
             echo "APK file does not exist."
             exit 1
           fi
 
-          echo "APK successfully generated:"
-          ls -lh "${{ steps.filename.outputs.APK_NAME }}"
+          FILE_SIZE=$(stat -c%s "$APK")
+
+          if [ "$FILE_SIZE" -le 0 ]; then
+            echo "APK file is empty."
+            exit 1
+          fi
+
+          echo "APK size:"
+          ls -lh "$APK"
+
+          echo "Checking APK ZIP structure..."
+
+          unzip -t "$APK" > /dev/null
+
+          if [ $? -ne 0 ]; then
+            echo "APK ZIP verification failed."
+            exit 1
+          fi
+
+          echo "APK ZIP verification successful."
 
 
       # ==========================================
@@ -239,6 +335,12 @@ jobs:
         with:
           tag_name: "store-${{ github.run_number }}"
           name: "${{ steps.app.outputs.LABEL }} ${{ github.run_number }}"
+          body: |
+            SGM Store APK
+
+            Package: ${{ steps.package.outputs.PACKAGE }}
+
+            APK: ${{ steps.filename.outputs.APK_NAME }}
           generate_release_notes: false
           files: |
             ${{ steps.filename.outputs.APK_NAME }}
@@ -257,4 +359,5 @@ jobs:
 
           rm -f bundletool.jar
           rm -f app.apks
+          rm -f sgmstore-release.jks
           rm -rf extracted

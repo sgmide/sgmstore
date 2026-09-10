@@ -18,9 +18,17 @@ jobs:
 
     steps:
 
+      # ==========================================
+      # CHECKOUT
+      # ==========================================
+
       - name: Checkout
         uses: actions/checkout@v4
 
+
+      # ==========================================
+      # JAVA
+      # ==========================================
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -28,6 +36,10 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+
+      # ==========================================
+      # FIND AAB
+      # ==========================================
 
       - name: Find AAB
         id: find_aab
@@ -43,18 +55,129 @@ jobs:
 
           echo "AAB=$AAB" >> "$GITHUB_OUTPUT"
 
-          echo "Found:"
+          echo "Found AAB:"
           echo "$AAB"
 
+
+      # ==========================================
+      # DOWNLOAD BUNDLETOOL
+      # ==========================================
 
       - name: Download bundletool
         shell: bash
         run: |
 
-          curl -L \
+          curl -fL \
             -o bundletool.jar \
-            https://github.com/google/bundletool/releases/latest/download/bundletool-all-1.18.1.jar
+            https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
 
+          if [ ! -s bundletool.jar ]; then
+            echo "Failed to download bundletool."
+            exit 1
+          fi
+
+          java -jar bundletool.jar version
+
+
+      # ==========================================
+      # GET PACKAGE NAME
+      # ==========================================
+
+      - name: Get package name
+        id: package
+        shell: bash
+        run: |
+
+          PACKAGE=$(java -jar bundletool.jar dump manifest \
+            --bundle="${{ steps.find_aab.outputs.AAB }}" \
+            --xpath=/manifest/@package)
+
+          PACKAGE=$(echo "$PACKAGE" | tr -d '\r\n' | xargs)
+
+          if [ -z "$PACKAGE" ]; then
+            echo "Could not detect package name."
+            exit 1
+          fi
+
+          echo "Package: $PACKAGE"
+
+          echo "PACKAGE=$PACKAGE" >> "$GITHUB_OUTPUT"
+
+
+      # ==========================================
+      # GET APPLICATION LABEL
+      # ==========================================
+
+      - name: Get application label
+        id: app
+        shell: bash
+        run: |
+
+          LABEL=$(java -jar bundletool.jar dump manifest \
+            --bundle="${{ steps.find_aab.outputs.AAB }}" \
+            --xpath=/manifest/application/@android:label)
+
+          LABEL=$(echo "$LABEL" | tr -d '\r\n' | xargs)
+
+          echo "Manifest label: $LABEL"
+
+          if [ -z "$LABEL" ]; then
+            LABEL="${{ steps.package.outputs.PACKAGE }}"
+          fi
+
+          echo "LABEL=$LABEL" >> "$GITHUB_OUTPUT"
+
+
+      # ==========================================
+      # CREATE APK FILE NAME
+      # ==========================================
+
+      - name: Create APK filename
+        id: filename
+        shell: bash
+        run: |
+
+          LABEL="${{ steps.app.outputs.LABEL }}"
+          PACKAGE="${{ steps.package.outputs.PACKAGE }}"
+
+          # If label is a resource reference such as
+          # @string/app_name, use package name.
+          if [[ "$LABEL" == @* ]]; then
+            LABEL="$PACKAGE"
+          fi
+
+          # Lowercase
+          LABEL=$(echo "$LABEL" | tr '[:upper:]' '[:lower:]')
+
+          # Spaces -> hyphens
+          LABEL=$(echo "$LABEL" | sed 's/[[:space:]]\+/-/g')
+
+          # Underscores -> hyphens
+          LABEL=$(echo "$LABEL" | sed 's/_\+/-/g')
+
+          # Remove invalid filename characters
+          LABEL=$(echo "$LABEL" | sed 's/[^a-z0-9.-]//g')
+
+          # Remove duplicate hyphens
+          LABEL=$(echo "$LABEL" | sed 's/-\{2,\}/-/g')
+
+          # Remove leading/trailing hyphens
+          LABEL=$(echo "$LABEL" | sed 's/^-//; s/-$//')
+
+          if [ -z "$LABEL" ]; then
+            LABEL="$PACKAGE"
+          fi
+
+          APK_NAME="${LABEL}.apk"
+
+          echo "APK name: $APK_NAME"
+
+          echo "APK_NAME=$APK_NAME" >> "$GITHUB_OUTPUT"
+
+
+      # ==========================================
+      # BUILD UNIVERSAL APK
+      # ==========================================
 
       - name: Build universal APK
         shell: bash
@@ -66,6 +189,15 @@ jobs:
             --mode=universal \
             --overwrite
 
+          if [ ! -f app.apks ]; then
+            echo "Failed to create app.apks."
+            exit 1
+          fi
+
+
+      # ==========================================
+      # EXTRACT APK
+      # ==========================================
 
       - name: Extract APK
         shell: bash
@@ -77,9 +209,22 @@ jobs:
             "universal.apk" \
             -d extracted
 
-          mv extracted/universal.apk \
-             app-release.apk
+          if [ ! -f extracted/universal.apk ]; then
+            echo "universal.apk not found."
+            exit 1
+          fi
 
+          mv \
+            extracted/universal.apk \
+            "${{ steps.filename.outputs.APK_NAME }}"
+
+          echo "Generated APK:"
+          ls -lh "${{ steps.filename.outputs.APK_NAME }}"
+
+
+      # ==========================================
+      # GET VERSION
+      # ==========================================
 
       - name: Get version
         id: version
@@ -90,6 +235,12 @@ jobs:
 
           echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
+          echo "Release version: $VERSION"
+
+
+      # ==========================================
+      # CREATE GITHUB RELEASE
+      # ==========================================
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -97,12 +248,40 @@ jobs:
 
           tag_name: "store-${{ steps.version.outputs.VERSION }}"
 
-          name: "SGM Store ${{ steps.version.outputs.VERSION }}"
+          name: "${{ steps.app.outputs.LABEL }} ${{ steps.version.outputs.VERSION }}"
 
-          generate_release_notes: true
+          body: |
+            App: ${{ steps.app.outputs.LABEL }}
+
+            Package:
+            ${{ steps.package.outputs.PACKAGE }}
+
+            Source:
+            app-release.aab
+
+            APK:
+            ${{ steps.filename.outputs.APK_NAME }}
+
+          generate_release_notes: false
 
           files: |
-            app-release.apk
+            ${{ steps.filename.outputs.APK_NAME }}
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+      # ==========================================
+      # CLEANUP
+      # ==========================================
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: |
+
+          rm -f bundletool.jar
+          rm -f app.apks
+          rm -rf extracted
+
+          echo "Cleanup complete."

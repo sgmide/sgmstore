@@ -5,6 +5,14 @@
     "version": "1.0",
     "size": "Unknown",
     "description": "Simple and powerful notes application",
-    "apk": "https://github.com/sgmide/sgmstore/releases/latest/download/app-release.apk"
+    "apk": "https:\/\/github.com\/sgmide\/sgmstore\/releases\/latest\/download\/app-release.apk"
+  },
+  {
+    "name": "Android Aide",
+    "package": "com.sgmsoft.android",
+    "version": "1",
+    "size": "3.9 MB",
+    "description": "Application published on SGM Store",
+    "apk": "https:\/\/github.com\/sgmide\/sgmstore\/releases\/latest\/download\/app-release.apk"
   }
 ]

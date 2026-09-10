@@ -1,10 +1,9 @@
-name: Publish AAB as APK
+name: Publish AAB
 
 on:
   push:
     paths:
       - "incoming/*.aab"
-
   workflow_dispatch:
 
 permissions:
@@ -18,348 +17,160 @@ jobs:
 
     steps:
 
-      # ==========================================
-      # CHECKOUT
-      # ==========================================
-
       - name: Checkout
         uses: actions/checkout@v4
 
-
-      # ==========================================
-      # JAVA
-      # ==========================================
-
-      - name: Set up Java
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      # ==========================================
-      # FIND AAB
-      # ==========================================
+      - name: Install Build Tools
+        run: |
+          sdkmanager "build-tools;35.0.0"
 
       - name: Find AAB
-        id: find_aab
+        id: find
         shell: bash
         run: |
 
           AAB=$(find incoming -maxdepth 1 -type f -name "*.aab" | head -n 1)
 
           if [ -z "$AAB" ]; then
-            echo "No AAB file found."
+            echo "No AAB found."
             exit 1
           fi
 
           echo "AAB=$AAB" >> "$GITHUB_OUTPUT"
 
-          echo "Found AAB:"
-          echo "$AAB"
-
-
-      # ==========================================
-      # DOWNLOAD BUNDLETOOL
-      # ==========================================
-
       - name: Download bundletool
-        shell: bash
         run: |
 
           curl -fL \
             -o bundletool.jar \
             https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
 
-          if [ ! -s bundletool.jar ]; then
-            echo "Failed to download bundletool."
-            exit 1
-          fi
-
           java -jar bundletool.jar version
 
-
-      # ==========================================
-      # GET PACKAGE NAME
-      # ==========================================
-
-      - name: Get package name
+      - name: Get Package
         id: package
         shell: bash
         run: |
 
           PACKAGE=$(java -jar bundletool.jar dump manifest \
-            --bundle="${{ steps.find_aab.outputs.AAB }}" \
+            --bundle="${{ steps.find.outputs.AAB }}" \
             --xpath=/manifest/@package)
 
           PACKAGE=$(echo "$PACKAGE" | tr -d '\r\n' | xargs)
 
           if [ -z "$PACKAGE" ]; then
-            echo "Could not detect package name."
+            echo "Package not found."
             exit 1
           fi
 
-          echo "Package: $PACKAGE"
-
           echo "PACKAGE=$PACKAGE" >> "$GITHUB_OUTPUT"
 
-
-      # ==========================================
-      # GET APPLICATION LABEL
-      # ==========================================
-
-      - name: Get application label
+      - name: Get App Name
         id: app
         shell: bash
         run: |
 
           LABEL=$(java -jar bundletool.jar dump manifest \
-            --bundle="${{ steps.find_aab.outputs.AAB }}" \
+            --bundle="${{ steps.find.outputs.AAB }}" \
             --xpath=/manifest/application/@android:label)
 
           LABEL=$(echo "$LABEL" | tr -d '\r\n' | xargs)
 
-          echo "Manifest label: $LABEL"
-
-          if [ -z "$LABEL" ]; then
+          if [[ "$LABEL" == @* ]] || [ -z "$LABEL" ]; then
             LABEL="${{ steps.package.outputs.PACKAGE }}"
           fi
 
           echo "LABEL=$LABEL" >> "$GITHUB_OUTPUT"
 
-
-      # ==========================================
-      # BUILD UNSIGNED UNIVERSAL APK
-      # ==========================================
-
-      - name: Build universal APK
-        shell: bash
-        run: |
-
-          java -jar bundletool.jar build-apks \
-            --bundle="${{ steps.find_aab.outputs.AAB }}" \
-            --output=app.apks \
-            --mode=universal \
-            --overwrite
-
-          if [ ! -f app.apks ]; then
-            echo "Failed to create app.apks."
-            exit 1
-          fi
-
-          echo "app.apks created successfully."
-
-
-      # ==========================================
-      # EXTRACT UNIVERSAL APK
-      # ==========================================
-
-      - name: Extract universal APK
-        shell: bash
-        run: |
-
-          rm -rf extracted
-
-          mkdir -p extracted
-
-          unzip -o app.apks \
-            "universal.apk" \
-            -d extracted
-
-          if [ ! -f extracted/universal.apk ]; then
-            echo "universal.apk not found."
-            exit 1
-          fi
-
-          cp \
-            extracted/universal.apk \
-            universal.apk
-
-          echo "Universal APK created:"
-          ls -lh universal.apk
-
-
-      # ==========================================
-      # READ APK LABEL
-      # ==========================================
-
-      - name: Install Android SDK tools
-        run: |
-
-          yes | sdkmanager \
-            "build-tools;35.0.0"
-
-
-      - name: Get APK application label
-        id: apk_label
-        shell: bash
-        run: |
-
-          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
-
-          if [ ! -f "$AAPT" ]; then
-            echo "aapt not found."
-            exit 1
-          fi
-
-          APK_LABEL=$(
-            "$AAPT" dump badging universal.apk |
-            sed -n "s/^application-label:'\(.*\)'/\1/p" |
-            head -n 1
-          )
-
-          APK_LABEL=$(echo "$APK_LABEL" | xargs)
-
-          if [ -z "$APK_LABEL" ]; then
-            APK_LABEL="${{ steps.app.outputs.LABEL }}"
-          fi
-
-          if [ -z "$APK_LABEL" ]; then
-            APK_LABEL="${{ steps.package.outputs.PACKAGE }}"
-          fi
-
-          echo "Resolved application label:"
-          echo "$APK_LABEL"
-
-          echo "APK_LABEL=$APK_LABEL" >> "$GITHUB_OUTPUT"
-
-
-      # ==========================================
-      # CREATE APK FILENAME
-      # ==========================================
-
-      - name: Create APK filename
+      - name: Create APK name
         id: filename
         shell: bash
         run: |
 
-          LABEL="${{ steps.apk_label.outputs.APK_LABEL }}"
-          PACKAGE="${{ steps.package.outputs.PACKAGE }}"
+          NAME="${{ steps.app.outputs.LABEL }}"
 
-          if [ -z "$LABEL" ]; then
-            LABEL="$PACKAGE"
+          NAME=$(echo "$NAME" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's/[^a-z0-9][^a-z0-9]*/-/g' \
+            | sed 's/^-*//;s/-*$//')
+
+          if [ -z "$NAME" ]; then
+            NAME="${{ steps.package.outputs.PACKAGE }}"
           fi
 
-          # Lowercase
-          LABEL=$(echo "$LABEL" | tr '[:upper:]' '[:lower:]')
+          echo "APK_NAME=${NAME}.apk" >> "$GITHUB_OUTPUT"
 
-          # Spaces -> hyphens
-          LABEL=$(echo "$LABEL" |
-            sed 's/[[:space:]]\+/-/g')
-
-          # Underscores -> hyphens
-          LABEL=$(echo "$LABEL" |
-            sed 's/_\+/-/g')
-
-          # Remove invalid characters
-          LABEL=$(echo "$LABEL" |
-            sed 's/[^a-z0-9.-]//g')
-
-          # Duplicate hyphens
-          LABEL=$(echo "$LABEL" |
-            sed 's/-\{2,\}/-/g')
-
-          # Leading/trailing hyphens
-          LABEL=$(echo "$LABEL" |
-            sed 's/^-//; s/-$//')
-
-          if [ -z "$LABEL" ]; then
-            LABEL="$PACKAGE"
-          fi
-
-          APK_NAME="${LABEL}.apk"
-
-          echo "APK filename:"
-          echo "$APK_NAME"
-
-          echo "APK_NAME=$APK_NAME" >> "$GITHUB_OUTPUT"
-
-
-      # ==========================================
-      # RENAME APK
-      # ==========================================
-
-      - name: Rename APK
+      - name: Decode signing key
         shell: bash
         run: |
 
-          APK_NAME="${{ steps.filename.outputs.APK_NAME }}"
-
-          mv \
-            universal.apk \
-            "$APK_NAME"
-
-          if [ ! -f "$APK_NAME" ]; then
-            echo "APK rename failed."
+          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "KEYSTORE_BASE64 secret is missing."
             exit 1
           fi
 
-          echo "Final APK:"
-          ls -lh "$APK_NAME"
+          echo "${{ secrets.KEYSTORE_BASE64 }}" \
+            | base64 --decode > release.jks
 
+          test -s release.jks
 
-      # ==========================================
-      # GET VERSION
-      # ==========================================
-
-      - name: Get version
-        id: version
-        shell: bash
+      - name: Build APK set
         run: |
 
-          VERSION=$(date +'%Y.%m.%d.%H%M')
+          java -jar bundletool.jar build-apks \
+            --bundle="${{ steps.find.outputs.AAB }}" \
+            --output=app.apks \
+            --mode=universal \
+            --ks=release.jks \
+            --ks-pass="pass:${{ secrets.KEYSTORE_PASSWORD }}" \
+            --ks-key-alias="${{ secrets.KEY_ALIAS }}" \
+            --key-pass="pass:${{ secrets.KEY_PASSWORD }}" \
+            --overwrite
 
-          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Extract APK
+        run: |
 
-          echo "Release version:"
-          echo "$VERSION"
+          mkdir -p extracted
 
+          unzip -o app.apks universal.apk -d extracted
 
-      # ==========================================
-      # CREATE GITHUB RELEASE
-      # ==========================================
+          test -f extracted/universal.apk
 
-      - name: Create GitHub Release
+          mv \
+            extracted/universal.apk \
+            "${{ steps.filename.outputs.APK_NAME }}"
+
+      - name: Verify APK
+        run: |
+
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify \
+            --verbose \
+            "${{ steps.filename.outputs.APK_NAME }}"
+
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-
-          tag_name: "store-${{ steps.version.outputs.VERSION }}"
-
-          name: "${{ steps.apk_label.outputs.APK_LABEL }} ${{ steps.version.outputs.VERSION }}"
-
-          body: |
-            App: ${{ steps.apk_label.outputs.APK_LABEL }}
-
-            Package:
-            ${{ steps.package.outputs.PACKAGE }}
-
-            Source:
-            app-release.aab
-
-            APK:
-            ${{ steps.filename.outputs.APK_NAME }}
-
+          tag_name: "store-${{ github.run_number }}"
+          name: "${{ steps.app.outputs.LABEL }} ${{ github.run_number }}"
           generate_release_notes: false
-
           files: |
             ${{ steps.filename.outputs.APK_NAME }}
-
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-
-      # ==========================================
-      # CLEANUP
-      # ==========================================
-
       - name: Cleanup
         if: always()
-        shell: bash
         run: |
-
+          rm -f release.jks
           rm -f bundletool.jar
           rm -f app.apks
-          rm -f universal.apk
           rm -rf extracted
-
-          echo "Cleanup complete."

@@ -1,0 +1,108 @@
+name: Publish AAB as APK
+
+on:
+  push:
+    paths:
+      - "incoming/*.aab"
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+
+      - name: Find AAB
+        id: find_aab
+        shell: bash
+        run: |
+
+          AAB=$(find incoming -maxdepth 1 -type f -name "*.aab" | head -n 1)
+
+          if [ -z "$AAB" ]; then
+            echo "No AAB file found."
+            exit 1
+          fi
+
+          echo "AAB=$AAB" >> "$GITHUB_OUTPUT"
+
+          echo "Found:"
+          echo "$AAB"
+
+
+      - name: Download bundletool
+        shell: bash
+        run: |
+
+          curl -L \
+            -o bundletool.jar \
+            https://github.com/google/bundletool/releases/latest/download/bundletool-all-1.18.1.jar
+
+
+      - name: Build universal APK
+        shell: bash
+        run: |
+
+          java -jar bundletool.jar build-apks \
+            --bundle="${{ steps.find_aab.outputs.AAB }}" \
+            --output=app.apks \
+            --mode=universal \
+            --overwrite
+
+
+      - name: Extract APK
+        shell: bash
+        run: |
+
+          mkdir -p extracted
+
+          unzip -o app.apks \
+            "universal.apk" \
+            -d extracted
+
+          mv extracted/universal.apk \
+             app-release.apk
+
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+
+          VERSION=$(date +'%Y.%m.%d.%H%M')
+
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+
+          tag_name: "store-${{ steps.version.outputs.VERSION }}"
+
+          name: "SGM Store ${{ steps.version.outputs.VERSION }}"
+
+          generate_release_notes: true
+
+          files: |
+            app-release.apk
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

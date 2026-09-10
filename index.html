@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+    <title>SGM Store</title>
+
+    <link
+        rel="stylesheet"
+        href="style.css">
+
+</head>
+
+<body>
+
+    <header>
+
+        <div class="topbar">
+
+            <div class="logo">
+                SGM Store
+            </div>
+
+            <div class="search">
+
+                <input
+                    type="text"
+                    id="search"
+                    placeholder="Search apps...">
+
+            </div>
+
+        </div>
+
+    </header>
+
+
+    <main>
+
+        <h2>Apps</h2>
+
+        <div id="appList">
+
+            <div class="loading">
+                Loading apps...
+            </div>
+
+        </div>
+
+    </main>
+
+
+    <script>
+
+        var allApps = [];
+
+
+        function loadApps() {
+
+            fetch("apps.json")
+                .then(function(response) {
+
+                    if (!response.ok) {
+                        throw new Error(
+                            "Unable to load apps"
+                        );
+                    }
+
+                    return response.json();
+
+                })
+                .then(function(data) {
+
+                    allApps = data;
+
+                    displayApps(allApps);
+
+                })
+                .catch(function(error) {
+
+                    document.getElementById(
+                        "appList"
+                    ).innerHTML =
+                        "<p>Unable to load apps.</p>";
+
+                });
+
+        }
+
+
+        function displayApps(apps) {
+
+            var container =
+                document.getElementById("appList");
+
+            container.innerHTML = "";
+
+
+            if (apps.length == 0) {
+
+                container.innerHTML =
+                    "<p>No apps found.</p>";
+
+                return;
+            }
+
+
+            for (var i = 0; i < apps.length; i++) {
+
+                var app = apps[i];
+
+
+                var card =
+                    document.createElement("div");
+
+                card.className = "app-card";
+
+
+                var icon =
+                    document.createElement("div");
+
+                icon.className = "app-icon";
+
+                icon.innerText =
+                    app.name.charAt(0).toUpperCase();
+
+
+                var info =
+                    document.createElement("div");
+
+                info.className = "app-info";
+
+
+                var name =
+                    document.createElement("h3");
+
+                name.innerText = app.name;
+
+
+                var description =
+                    document.createElement("p");
+
+                description.innerText =
+                    app.description;
+
+
+                var meta =
+                    document.createElement("small");
+
+                meta.innerText =
+                    "Version "
+                    + app.version
+                    + " • "
+                    + app.size;
+
+
+                info.appendChild(name);
+                info.appendChild(description);
+                info.appendChild(meta);
+
+
+                var button =
+                    document.createElement("a");
+
+                button.className = "install";
+
+                button.innerText = "INSTALL";
+
+                button.href = app.apk;
+
+                button.target = "_blank";
+
+
+                card.appendChild(icon);
+                card.appendChild(info);
+                card.appendChild(button);
+
+
+                container.appendChild(card);
+            }
+
+        }
+
+
+        document.getElementById(
+            "search"
+        ).addEventListener(
+            "input",
+            function() {
+
+                var text =
+                    this.value.toLowerCase();
+
+                var filtered = [];
+
+
+                for (
+                    var i = 0;
+                    i < allApps.length;
+                    i++
+                ) {
+
+                    if (
+                        allApps[i].name
+                            .toLowerCase()
+                            .indexOf(text) != -1
+                    ) {
+
+                        filtered.push(
+                            allApps[i]
+                        );
+
+                    }
+
+                }
+
+
+                displayApps(filtered);
+
+            }
+        );
+
+
+        loadApps();
+
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,10 @@
+[
+  {
+    "name": "SGM Notes",
+    "package": "com.sgmsoft.sgmnotes",
+    "version": "1.0",
+    "size": "Unknown",
+    "description": "Simple and powerful notes application",
+    "apk": "https://github.com/sgmide/sgmstore/releases/latest/download/app-release.apk"
+  }
+]

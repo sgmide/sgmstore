@@ -1,4 +1,4 @@
-name: SGM Store - Publish AAB
+name: SGM Store - Build APK from AAB
 
 on:
   repository_dispatch:
@@ -6,18 +6,25 @@ on:
       - aab_uploaded
 
   workflow_dispatch:
+    inputs:
+      package_name:
+        description: "Package name"
+        required: true
+        type: string
+
+      app_name:
+        description: "App name"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
 
-  publish:
+  build:
 
     runs-on: ubuntu-latest
-
-    env:
-      KEY_ALIAS: sgmstore
 
     steps:
 
@@ -25,20 +32,40 @@ jobs:
       # CHECKOUT
       # ==========================================
 
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-
 
       # ==========================================
       # JAVA
       # ==========================================
 
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
+      # ==========================================
+      # GET APP INFORMATION
+      # ==========================================
+
+      - name: Set app information
+        shell: bash
+        run: |
+
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+
+            echo "APP_NAME=${{ github.event.client_payload.app_name }}" >> "$GITHUB_ENV"
+
+            echo "PACKAGE_NAME=${{ github.event.client_payload.package_name }}" >> "$GITHUB_ENV"
+
+          else
+
+            echo "APP_NAME=${{ inputs.app_name }}" >> "$GITHUB_ENV"
+
+            echo "PACKAGE_NAME=${{ inputs.package_name }}" >> "$GITHUB_ENV"
+
+          fi
 
       # ==========================================
       # CHECK AAB
@@ -47,69 +74,16 @@ jobs:
       - name: Check AAB
         shell: bash
         run: |
+
           set -e
 
           if [ ! -f "incoming/app-release.aab" ]; then
-            echo "ERROR: incoming/app-release.aab not found"
+            echo "AAB not found:"
+            ls -la incoming || true
             exit 1
           fi
 
           ls -lh incoming/app-release.aab
-
-
-      # ==========================================
-      # GET APP INFORMATION
-      # ==========================================
-
-      - name: Get app information
-        shell: bash
-        run: |
-          set -e
-
-          APP_NAME="${{ github.event.client_payload.app_name }}"
-          PACKAGE_NAME="${{ github.event.client_payload.package_name }}"
-
-          if [ -z "$APP_NAME" ]; then
-            APP_NAME="SGM Store App"
-          fi
-
-          if [ -z "$PACKAGE_NAME" ]; then
-            echo "ERROR: package_name not supplied"
-            exit 1
-          fi
-
-          echo "APP_NAME=$APP_NAME" >> "$GITHUB_ENV"
-          echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
-
-          echo "App: $APP_NAME"
-          echo "Package: $PACKAGE_NAME"
-
-
-      # ==========================================
-      # CREATE APK FILENAME
-      # ==========================================
-
-      - name: Create APK filename
-        shell: bash
-        run: |
-          set -e
-
-          APK_NAME=$(echo "$PACKAGE_NAME" \
-            | tr '[:upper:]' '[:lower:]' \
-            | sed 's/[^a-z0-9]/-/g' \
-            | sed 's/^-*//' \
-            | sed 's/-*$//')
-
-          if [ -z "$APK_NAME" ]; then
-            APK_NAME="app"
-          fi
-
-          APK_FILE_NAME="${APK_NAME}.apk"
-
-          echo "APK_FILE_NAME=$APK_FILE_NAME" >> "$GITHUB_ENV"
-
-          echo "APK filename: $APK_FILE_NAME"
-
 
       # ==========================================
       # DOWNLOAD BUNDLETOOL
@@ -118,222 +92,149 @@ jobs:
       - name: Download bundletool
         shell: bash
         run: |
-          set -e
 
-          VERSION="1.18.1"
+          set -e
 
           curl -L \
             -o bundletool.jar \
-            "https://github.com/google/bundletool/releases/download/${VERSION}/bundletool-all-${VERSION}.jar"
+            https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar
 
-          java -jar bundletool.jar version
-
-
-      # ==========================================
-      # CREATE / RESTORE SIGNING KEY
-      # ==========================================
-
-      - name: Create or restore SGM Store signing key
-        shell: bash
-        env:
-          MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
-        run: |
-          set -e
-
-          if [ -z "$MASTER_PASSWORD" ]; then
-            echo "ERROR: SGM_MASTER_PASSWORD secret is missing"
-            exit 1
-          fi
-
-          mkdir -p signing
-
-          if [ -f "signing/sgmstore.jks.gpg" ]; then
-
-            echo "Existing SGM Store signing key found."
-
-            gpg \
-              --batch \
-              --yes \
-              --passphrase "$MASTER_PASSWORD" \
-              --pinentry-mode loopback \
-              --decrypt \
-              --output signing/sgmstore.jks \
-              signing/sgmstore.jks.gpg
-
-          else
-
-            echo "No signing key found."
-            echo "Creating permanent SGM Store signing key..."
-
-            keytool \
-              -genkeypair \
-              -v \
-              -keystore signing/sgmstore.jks \
-              -storetype JKS \
-              -alias "$KEY_ALIAS" \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass "$MASTER_PASSWORD" \
-              -keypass "$MASTER_PASSWORD" \
-              -dname "CN=SGM Store, OU=SGM, O=SGM Store, L=Kannur, ST=Kerala, C=IN"
-
-            gpg \
-              --batch \
-              --yes \
-              --passphrase "$MASTER_PASSWORD" \
-              --pinentry-mode loopback \
-              --symmetric \
-              --cipher-algo AES256 \
-              --output signing/sgmstore.jks.gpg \
-              signing/sgmstore.jks
-
-            echo "New permanent signing key created."
-
-            rm -f signing/sgmstore.jks
-
-            git config user.name "SGM Store"
-            git config user.email "actions@github.com"
-
-            git add signing/sgmstore.jks.gpg
-
-            git commit \
-              -m "Initialize SGM Store signing key"
-
-            git push
-          fi
-
-          chmod 600 signing/sgmstore.jks
-
+          ls -lh bundletool.jar
 
       # ==========================================
-      # READ AAB INFORMATION
+      # CREATE TEMP KEYSTORE
       # ==========================================
 
-      - name: Read AAB manifest
+      - name: Create signing keystore
         shell: bash
         run: |
+
           set -e
 
-          java -jar bundletool.jar dump manifest \
-            --bundle=incoming/app-release.aab \
-            > aab-manifest.xml
-
-          cat aab-manifest.xml
-
+          keytool \
+            -genkeypair \
+            -v \
+            -keystore store.jks \
+            -alias sgmstore \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass "${{ secrets.SGM_MASTER_PASSWORD }}" \
+            -keypass "${{ secrets.SGM_MASTER_PASSWORD }}" \
+            -dname "CN=SGM Store, OU=SGM, O=SGM, L=India, ST=Kerala, C=IN"
 
       # ==========================================
-      # BUILD SIGNED APK SET
+      # CREATE APK SET
       # ==========================================
 
       - name: Build APK set
         shell: bash
-        env:
-          MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
         run: |
+
           set -e
 
           java -jar bundletool.jar build-apks \
             --bundle=incoming/app-release.aab \
             --output=app.apks \
-            --ks=signing/sgmstore.jks \
-            --ks-key-alias="$KEY_ALIAS" \
-            --ks-pass=pass:"$MASTER_PASSWORD" \
-            --key-pass=pass:"$MASTER_PASSWORD" \
-            --overwrite
+            --mode=universal \
+            --ks=store.jks \
+            --ks-key-alias=sgmstore \
+            --ks-pass=pass:"${{ secrets.SGM_MASTER_PASSWORD }}" \
+            --key-pass=pass:"${{ secrets.SGM_MASTER_PASSWORD }}"
 
           ls -lh app.apks
 
-
       # ==========================================
-      # EXTRACT APK SET
+      # EXTRACT UNIVERSAL APK
       # ==========================================
 
-      - name: Extract APKs
+      - name: Extract universal APK
         shell: bash
         run: |
+
           set -e
-
-          rm -rf generated-apks
-
-          mkdir -p generated-apks
-
-          unzip -o app.apks \
-            -d generated-apks
-
-          echo "Generated APK files:"
-
-          find generated-apks \
-            -type f \
-            -name "*.apk" \
-            -print
-
-
-      # ==========================================
-      # BUILD UNIVERSAL APK
-      # ==========================================
-
-      - name: Build universal APK
-        shell: bash
-        env:
-          MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
-        run: |
-          set -e
-
-          java -jar bundletool.jar build-apks \
-            --bundle=incoming/app-release.aab \
-            --output=universal.apks \
-            --mode=universal \
-            --ks=signing/sgmstore.jks \
-            --ks-key-alias="$KEY_ALIAS" \
-            --ks-pass=pass:"$MASTER_PASSWORD" \
-            --key-pass=pass:"$MASTER_PASSWORD" \
-            --overwrite
 
           rm -rf universal
 
           mkdir -p universal
 
-          unzip -o universal.apks \
+          unzip -o \
+            app.apks \
+            "universal.apk" \
             -d universal
 
           if [ ! -f "universal/universal.apk" ]; then
-            echo "ERROR: universal.apk not found"
+            echo "Universal APK not found"
             exit 1
           fi
 
-          cp \
-            universal/universal.apk \
-            "$APK_FILE_NAME"
-
-          ls -lh "$APK_FILE_NAME"
-
+          ls -lh universal/universal.apk
 
       # ==========================================
-      # VERIFY APK
+      # CREATE APK FILE NAME
       # ==========================================
 
-      - name: Verify APK
+      - name: Create APK filename
         shell: bash
         run: |
+
           set -e
 
-          APKSIGNER=$(find "$ANDROID_HOME/build-tools" \
-            -name apksigner \
-            | sort \
-            | tail -1)
+          APK_FILE_NAME=$(echo "$PACKAGE_NAME" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's/[^a-z0-9]/-/g' \
+            | sed 's/^-*//' \
+            | sed 's/-*$//')
 
-          if [ -z "$APKSIGNER" ]; then
-            echo "ERROR: apksigner not found"
-            exit 1
-          fi
+          APK_FILE_NAME="${APK_FILE_NAME}.apk"
 
-          "$APKSIGNER" verify \
-            --verbose \
-            "$APK_FILE_NAME"
+          echo "APK_FILE_NAME=$APK_FILE_NAME" >> "$GITHUB_ENV"
 
-          echo "APK signature verified."
+          echo "APK filename:"
+          echo "$APK_FILE_NAME"
 
+      # ==========================================
+      # CREATE UNIQUE RELEASE TAG
+      # ==========================================
+
+      - name: Create release tag
+        shell: bash
+        run: |
+
+          set -e
+
+          RELEASE_TAG=$(echo "$PACKAGE_NAME" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's/[^a-z0-9]/-/g' \
+            | sed 's/^-*//' \
+            | sed 's/-*$//')
+
+          echo "RELEASE_TAG=app-$RELEASE_TAG" >> "$GITHUB_ENV"
+
+      # ==========================================
+      # DELETE OLD RELEASE
+      # ==========================================
+
+      - name: Delete old release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+
+          set +e
+
+          gh release delete \
+            "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --yes \
+            2>/dev/null
+
+          git push \
+            --delete origin \
+            "$RELEASE_TAG" \
+            2>/dev/null
+
+          set -e
 
       # ==========================================
       # CREATE GITHUB RELEASE
@@ -342,28 +243,43 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "sgmstore-${{ github.run_number }}"
-          name: "SGM Store - ${{ env.APP_NAME }} - ${{ github.run_number }}"
-          generate_release_notes: true
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.APP_NAME }}
+          body: |
+            SGM Store application
+
+            App: ${{ env.APP_NAME }}
+            Package: ${{ env.PACKAGE_NAME }}
 
           files: |
-            ${{ env.APK_FILE_NAME }}
-            app.apks
-
+            universal/universal.apk
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ==========================================
-      # CLEANUP
+      # DONE
       # ==========================================
 
-      - name: Cleanup
-        if: always()
+      - name: Build completed
         shell: bash
         run: |
-          rm -f signing/sgmstore.jks
-          rm -f bundletool.jar
-          rm -f aab-manifest.xml
-          rm -f app.apks
-          rm -f universal.apks
-          rm -f "$APK_FILE_NAME"
-          rm -rf universal
-          rm -rf generated-apks
+
+          echo "=========================================="
+          echo "SGM Store build completed"
+          echo "=========================================="
+
+          echo "App:"
+          echo "$APP_NAME"
+
+          echo "Package:"
+          echo "$PACKAGE_NAME"
+
+          echo "APK:"
+          echo "$APK_FILE_NAME"
+
+          echo "Release:"
+          echo "$RELEASE_TAG"
+
+          echo "Download URL:"
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/$APK_FILE_NAME"

@@ -75,21 +75,32 @@ jobs:
 
       - name: Read app information
         shell: bash
+        env:
+          EVENT_APP_NAME: ${{ github.event.client_payload.app_name }}
+          EVENT_PACKAGE_NAME: ${{ github.event.client_payload.package_name }}
+          EVENT_VERSION: ${{ github.event.client_payload.version }}
+          EVENT_DESCRIPTION: ${{ github.event.client_payload.description }}
+
+          INPUT_APP_NAME: ${{ inputs.app_name }}
+          INPUT_PACKAGE_NAME: ${{ inputs.package_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_DESCRIPTION: ${{ inputs.description }}
+
         run: |
 
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
 
-            APP_NAME='${{ github.event.client_payload.app_name }}'
-            PACKAGE_NAME='${{ github.event.client_payload.package_name }}'
-            VERSION='${{ github.event.client_payload.version }}'
-            DESCRIPTION='${{ github.event.client_payload.description }}'
+            APP_NAME="$EVENT_APP_NAME"
+            PACKAGE_NAME="$EVENT_PACKAGE_NAME"
+            VERSION="$EVENT_VERSION"
+            DESCRIPTION="$EVENT_DESCRIPTION"
 
           else
 
-            APP_NAME='${{ inputs.app_name }}'
-            PACKAGE_NAME='${{ inputs.package_name }}'
-            VERSION='${{ inputs.version }}'
-            DESCRIPTION='${{ inputs.description }}'
+            APP_NAME="$INPUT_APP_NAME"
+            PACKAGE_NAME="$INPUT_PACKAGE_NAME"
+            VERSION="$INPUT_VERSION"
+            DESCRIPTION="$INPUT_DESCRIPTION"
 
           fi
 
@@ -103,10 +114,12 @@ jobs:
             exit 1
           fi
 
+
           if [ -z "$PACKAGE_NAME" ]; then
             echo "ERROR: Package name is empty"
             exit 1
           fi
+
 
           if [ -z "$VERSION" ]; then
             echo "ERROR: Version is empty"
@@ -120,7 +133,7 @@ jobs:
 
           if ! echo "$PACKAGE_NAME" | grep -Eq '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$'; then
 
-            echo "ERROR: Invalid package name:"
+            echo "ERROR: Invalid Android package name:"
             echo "$PACKAGE_NAME"
 
             exit 1
@@ -129,10 +142,12 @@ jobs:
 
 
           # ------------------------------------------------------
-          # Package name for filenames
+          # Convert package to filename
           #
           # com.sgmsoft.android
-          # ↓
+          #
+          # becomes
+          #
           # com-sgmsoft-android
           # ------------------------------------------------------
 
@@ -140,7 +155,7 @@ jobs:
 
 
           # ------------------------------------------------------
-          # Release
+          # GitHub Release tag
           # ------------------------------------------------------
 
           RELEASE_TAG="app-${PACKAGE_BASE}"
@@ -153,13 +168,21 @@ jobs:
           APK_FILE_NAME="${PACKAGE_BASE}.apks"
 
 
-          echo "APP_NAME=$APP_NAME" >> "$GITHUB_ENV"
-          echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "DESCRIPTION=$DESCRIPTION" >> "$GITHUB_ENV"
-          echo "PACKAGE_BASE=$PACKAGE_BASE" >> "$GITHUB_ENV"
-          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
-          echo "APK_FILE_NAME=$APK_FILE_NAME" >> "$GITHUB_ENV"
+          # ------------------------------------------------------
+          # Export variables
+          # ------------------------------------------------------
+
+          {
+            echo "APP_NAME=$APP_NAME"
+            echo "PACKAGE_NAME=$PACKAGE_NAME"
+            echo "VERSION=$VERSION"
+            echo "DESCRIPTION<<EOF"
+            echo "$DESCRIPTION"
+            echo "EOF"
+            echo "PACKAGE_BASE=$PACKAGE_BASE"
+            echo "RELEASE_TAG=$RELEASE_TAG"
+            echo "APK_FILE_NAME=$APK_FILE_NAME"
+          } >> "$GITHUB_ENV"
 
 
           echo ""
@@ -205,12 +228,12 @@ jobs:
         shell: bash
         run: |
 
-          curl -L \
+          curl -fL \
             -o bundletool.jar \
             https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
 
 
-          if [ ! -f "bundletool.jar" ]; then
+          if [ ! -s "bundletool.jar" ]; then
 
             echo "ERROR: bundletool download failed"
             exit 1
@@ -226,21 +249,23 @@ jobs:
       # ==========================================================
       # PREPARE SIGNING KEY
       #
-      # Secret required:
+      # Required repository secret:
       #
       # SGM_MASTER_PASSWORD
       #
-      # Each package gets its own encrypted JKS:
+      # Each application has its own encrypted key:
       #
-      # signing/com-sgmsoft-android.jks.gpg
+      # signing/
+      #   com-sgmsoft-android.jks.gpg
+      #   com-sgmsoft-androidaide.jks.gpg
       #
-      # signing/com-sgmsoft-androidaide.jks.gpg
       # ==========================================================
 
       - name: Prepare signing key
         shell: bash
         env:
           MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
+
         run: |
 
           if [ -z "$MASTER_PASSWORD" ]; then
@@ -261,29 +286,40 @@ jobs:
 
 
           # ------------------------------------------------------
-          # Existing key
+          # Existing encrypted key
           # ------------------------------------------------------
 
           if [ -f "$ENCRYPTED_KEY" ]; then
 
-            echo "Existing signing key found"
+            echo "Existing encrypted signing key found"
+
 
             gpg \
               --batch \
               --yes \
+              --pinentry-mode loopback \
               --passphrase "$MASTER_PASSWORD" \
               --decrypt \
               --output "$KEY_FILE" \
               "$ENCRYPTED_KEY"
 
 
+            if [ ! -f "$KEY_FILE" ]; then
+
+              echo "ERROR: Could not decrypt signing key"
+
+              exit 1
+
+            fi
+
+
           # ------------------------------------------------------
-          # New key
+          # Create new signing key
           # ------------------------------------------------------
 
           else
 
-            echo "No signing key found"
+            echo "No encrypted signing key found"
 
             echo "Creating new signing key"
 
@@ -308,11 +344,21 @@ jobs:
             gpg \
               --batch \
               --yes \
+              --pinentry-mode loopback \
               --passphrase "$MASTER_PASSWORD" \
               --symmetric \
               --cipher-algo AES256 \
               --output "$ENCRYPTED_KEY" \
               "$KEY_FILE"
+
+
+            if [ ! -f "$ENCRYPTED_KEY" ]; then
+
+              echo "ERROR: Signing key encryption failed"
+
+              exit 1
+
+            fi
 
 
             echo "Encrypted signing key created"
@@ -327,18 +373,20 @@ jobs:
       # ==========================================================
       # BUILD APK SET
       #
-      # IMPORTANT:
-      #
       # NO --mode=universal
       # NO --device-spec
       #
-      # This creates an APK Set (.apks).
+      # Result:
+      #
+      # com-sgmsoft-android.apks
+      #
       # ==========================================================
 
       - name: Build APK Set
         shell: bash
         env:
           MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
+
         run: |
 
           mkdir -p output
@@ -395,7 +443,7 @@ jobs:
 
 
       # ==========================================================
-      # CREATE / UPDATE GITHUB RELEASE
+      # PUBLISH GITHUB RELEASE
       #
       # Example:
       #
@@ -407,12 +455,14 @@ jobs:
       #
       # File:
       # com-sgmsoft-android.apks
+      #
       # ==========================================================
 
       - name: Publish GitHub Release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
         run: |
 
           echo "Release tag:"
@@ -466,6 +516,13 @@ jobs:
 
       # ==========================================================
       # UPDATE apps.json
+      #
+      # GitHub Release URL:
+      #
+      # https://github.com/sgmide/sgmstore/releases/download/
+      # app-com-sgmsoft-android/
+      # com-sgmsoft-android.apks
+      #
       # ==========================================================
 
       - name: Update apps.json
@@ -491,7 +548,7 @@ jobs:
 
 
           # ------------------------------------------------------
-          # GitHub Release URL
+          # GitHub Release download URL
           # ------------------------------------------------------
 
           download_url = (
@@ -505,9 +562,10 @@ jobs:
 
 
           print("")
-          print("Download URL:")
+          print("======================================")
+          print("GitHub Release URL:")
           print(download_url)
-          print("")
+          print("======================================")
 
 
           # ------------------------------------------------------
@@ -526,19 +584,17 @@ jobs:
 
                       apps = json.load(f)
 
-
               except Exception:
 
-                  print("Existing apps.json is invalid.")
-                  print("Creating a new catalog.")
+                  print("WARNING: Invalid apps.json")
+                  print("Creating a new catalog")
 
                   apps = []
 
-
           else:
 
-              print("apps.json does not exist.")
-              print("Creating new catalog.")
+              print("apps.json does not exist")
+              print("Creating new catalog")
 
               apps = []
 
@@ -549,7 +605,7 @@ jobs:
 
 
           # ------------------------------------------------------
-          # New app entry
+          # New app
           # ------------------------------------------------------
 
           new_app = {
@@ -568,7 +624,7 @@ jobs:
 
 
           # ------------------------------------------------------
-          # Update existing package
+          # Find existing package
           # ------------------------------------------------------
 
           updated = False
@@ -583,7 +639,7 @@ jobs:
                   updated = True
 
                   print(
-                      "Updated existing package:",
+                      "Updated existing app:",
                       package_name
                   )
 
@@ -599,13 +655,13 @@ jobs:
               apps.append(new_app)
 
               print(
-                  "Added new package:",
+                  "Added new app:",
                   package_name
               )
 
 
           # ------------------------------------------------------
-          # Save
+          # Write apps.json
           # ------------------------------------------------------
 
           with open(
@@ -625,23 +681,28 @@ jobs:
 
 
           print("")
-          print("apps.json updated successfully")
+          print("apps.json:")
           print("")
 
 
           PY
 
 
-          echo "--------------------------------------"
           cat apps.json
-          echo "--------------------------------------"
 
 
       # ==========================================================
-      # COMMIT apps.json
+      # SAVE ENCRYPTED SIGNING KEY + apps.json
+      #
+      # IMPORTANT:
+      #
+      # The encrypted JKS MUST be committed.
+      #
+      # Otherwise the next GitHub Actions run creates a new key.
+      #
       # ==========================================================
 
-      - name: Commit apps.json
+      - name: Commit catalog and signing key
         shell: bash
         run: |
 
@@ -654,14 +715,18 @@ jobs:
           git add apps.json
 
 
+          # Add encrypted signing key
+          git add "signing/${PACKAGE_BASE}.jks.gpg"
+
+
           if git diff --cached --quiet; then
 
-            echo "No apps.json changes"
+            echo "No repository changes"
 
           else
 
             git commit \
-              -m "Update ${PACKAGE_NAME} ${VERSION}"
+              -m "Publish ${PACKAGE_NAME} ${VERSION}"
 
             git push
 
@@ -670,6 +735,9 @@ jobs:
 
       # ==========================================================
       # CLEANUP
+      #
+      # Plain JKS is NEVER committed.
+      # Only encrypted .gpg remains in repository.
       # ==========================================================
 
       - name: Cleanup

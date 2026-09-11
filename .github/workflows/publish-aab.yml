@@ -114,18 +114,10 @@ jobs:
             SIZE="Unknown"
           fi
 
-          # ------------------------------------------
-          # Write normal values
-          # ------------------------------------------
-
           printf 'APP_NAME=%s\n' "$APP_NAME" >> "$GITHUB_ENV"
           printf 'PACKAGE_NAME=%s\n' "$PACKAGE_NAME" >> "$GITHUB_ENV"
           printf 'VERSION=%s\n' "$VERSION" >> "$GITHUB_ENV"
           printf 'APP_SIZE=%s\n' "$SIZE" >> "$GITHUB_ENV"
-
-          # ------------------------------------------
-          # Write multiline description safely
-          # ------------------------------------------
 
           {
             echo 'DESCRIPTION<<SGM_DESCRIPTION_EOF'
@@ -219,7 +211,6 @@ jobs:
             exit 1
           fi
 
-          echo "Bundletool downloaded:"
           ls -lh bundletool.jar
 
 
@@ -239,10 +230,6 @@ jobs:
           ENCRYPTED_KEYSTORE="signing/sgmstore.jks.gpg"
           KEYSTORE="signing/sgmstore.jks"
 
-          # --------------------------------------
-          # EXISTING KEYSTORE
-          # --------------------------------------
-
           if [ -f "$ENCRYPTED_KEYSTORE" ]; then
 
             echo "Permanent encrypted keystore found."
@@ -259,10 +246,6 @@ jobs:
             echo "Permanent keystore restored."
 
           else
-
-            # ----------------------------------
-            # CREATE NEW KEYSTORE
-            # ----------------------------------
 
             echo "No permanent keystore found."
             echo "Creating permanent SGM Store signing key..."
@@ -281,10 +264,6 @@ jobs:
 
             echo "Keystore created."
 
-            # ----------------------------------
-            # ENCRYPT KEYSTORE
-            # ----------------------------------
-
             gpg \
               --batch \
               --yes \
@@ -297,15 +276,7 @@ jobs:
 
             echo "Keystore encrypted."
 
-            # ----------------------------------
-            # DELETE PLAINTEXT KEYSTORE
-            # ----------------------------------
-
             rm -f "$KEYSTORE"
-
-            # ----------------------------------
-            # SAVE ENCRYPTED KEYSTORE
-            # ----------------------------------
 
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -326,10 +297,6 @@ jobs:
                 HEAD:${GITHUB_REF_NAME}
 
             fi
-
-            # ----------------------------------
-            # RESTORE FOR CURRENT BUILD
-            # ----------------------------------
 
             gpg \
               --batch \
@@ -400,7 +367,6 @@ jobs:
             exit 1
           fi
 
-          echo "Signed APK bundle created:"
           ls -lh app.apks
 
 
@@ -443,7 +409,6 @@ jobs:
             universal/universal.apk \
             "universal/${APK_FILE_NAME}"
 
-          echo "Final APK:"
           ls -lh "universal/${APK_FILE_NAME}"
 
 
@@ -474,8 +439,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e
-
-          echo "Checking old release..."
 
           gh release delete \
             "$RELEASE_TAG" \
@@ -529,10 +492,10 @@ jobs:
 
 
       # ==========================================
-      # UPDATE APPS.JSON
+      # CREATE OR UPDATE APPS.JSON
       # ==========================================
 
-      - name: Update apps.json
+      - name: Create or update apps.json
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -540,7 +503,7 @@ jobs:
           set -e
 
           echo "=============================================="
-          echo "Updating apps.json..."
+          echo "CREATE / UPDATE apps.json"
           echo "=============================================="
 
           APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${APK_FILE_NAME}"
@@ -554,11 +517,19 @@ jobs:
           import urllib.request
           import urllib.error
 
+          # ==========================================
+          # REPOSITORY
+          # ==========================================
+
           repository = os.environ["GITHUB_REPOSITORY"]
 
           owner, repo = repository.split("/", 1)
 
           token = os.environ["GH_TOKEN"]
+
+          # ==========================================
+          # APP DATA
+          # ==========================================
 
           package_name = os.environ["PACKAGE_NAME"]
           app_name = os.environ["APP_NAME"]
@@ -575,76 +546,110 @@ jobs:
               + "/contents/apps.json"
           )
 
+          headers = {
+              "Authorization": "Bearer " + token,
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28"
+          }
+
           # ==========================================
-          # GET EXISTING apps.json
+          # READ apps.json
           # ==========================================
+
+          sha = None
+          apps = []
 
           get_request = urllib.request.Request(
               api_url,
-              headers={
-                  "Authorization": "Bearer " + token,
-                  "Accept": "application/vnd.github+json",
-                  "X-GitHub-Api-Version": "2022-11-28"
-              }
+              headers=headers
           )
 
           try:
 
               with urllib.request.urlopen(get_request) as response:
+
                   data = json.loads(
                       response.read().decode("utf-8")
                   )
 
               sha = data.get("sha")
 
-              content_encoded = data.get("content", "")
+              encoded_content = data.get(
+                  "content",
+                  ""
+              )
 
-              content_encoded = (
-                  content_encoded
+              encoded_content = (
+                  encoded_content
                   .replace("\n", "")
                   .replace("\r", "")
               )
 
-              if content_encoded:
+              if encoded_content:
 
-                  decoded = base64.b64decode(
-                      content_encoded
+                  decoded_content = base64.b64decode(
+                      encoded_content
                   ).decode("utf-8")
 
-                  apps = json.loads(decoded)
+                  if decoded_content.strip():
+
+                      apps = json.loads(
+                          decoded_content
+                      )
+
+                  else:
+
+                      apps = []
 
               else:
 
                   apps = []
 
+              print("Existing apps.json found.")
+
           except urllib.error.HTTPError as error:
 
               if error.code == 404:
 
-                  print("apps.json does not exist.")
-                  print("Creating new apps.json.")
+                  print("apps.json NOT FOUND.")
+                  print("A new apps.json will be created.")
 
                   sha = None
                   apps = []
 
               else:
 
-                  print("ERROR while reading apps.json.")
+                  print("ERROR reading apps.json.")
+
+                  error_body = error.read().decode(
+                      "utf-8",
+                      errors="replace"
+                  )
+
+                  print(error_body)
+
                   raise
 
 
           # ==========================================
-          # VALIDATE JSON
+          # VALIDATE EXISTING DATA
           # ==========================================
 
           if not isinstance(apps, list):
-              print("Existing apps.json is not an array.")
-              print("Starting with empty app list.")
+
+              print(
+                  "Existing apps.json is invalid."
+              )
+
+              print(
+                  "Creating a new JSON array."
+              )
+
               apps = []
 
 
           # ==========================================
-          # CREATE NEW APP OBJECT
+          # NEW APP OBJECT
           # ==========================================
 
           new_app = {
@@ -658,7 +663,7 @@ jobs:
 
 
           # ==========================================
-          # REPLACE EXISTING PACKAGE
+          # FIND SAME PACKAGE
           # ==========================================
 
           replaced = False
@@ -672,14 +677,13 @@ jobs:
 
               if item.get("package") == package_name:
 
+                  print("")
                   print(
-                      "Existing package found."
+                      "Existing package found:"
                   )
-
+                  print(package_name)
                   print(
-                      "Replacing existing entry:"
-                      + " "
-                      + package_name
+                      "Replacing old entry..."
                   )
 
                   apps[index] = new_app
@@ -695,15 +699,14 @@ jobs:
 
           if not replaced:
 
+              print("")
               print(
-                  "New package."
+                  "Package not found."
               )
-
               print(
-                  "Adding:"
-                  + " "
-                  + package_name
+                  "Adding new app entry:"
               )
+              print(package_name)
 
               apps.append(new_app)
 
@@ -725,18 +728,23 @@ jobs:
 
 
           # ==========================================
-          # UPDATE PAYLOAD
+          # CREATE GITHUB API PAYLOAD
           # ==========================================
 
           payload = {
               "message":
-                  "Update apps.json - "
+                  "Create/update apps.json - "
                   + app_name,
 
               "content":
                   encoded
           }
 
+
+          # ==========================================
+          # IF FILE EXISTS
+          # SEND SHA
+          # ==========================================
 
           if sha:
 
@@ -750,26 +758,29 @@ jobs:
 
 
           # ==========================================
-          # PUT apps.json
+          # CREATE OR UPDATE apps.json
           # ==========================================
+
+          update_headers = {
+              "Authorization":
+                  "Bearer " + token,
+
+              "Accept":
+                  "application/vnd.github+json",
+
+              "Content-Type":
+                  "application/json",
+
+              "X-GitHub-Api-Version":
+                  "2022-11-28"
+          }
+
 
           update_request = urllib.request.Request(
               api_url,
               data=body,
               method="PUT",
-              headers={
-                  "Authorization":
-                      "Bearer " + token,
-
-                  "Accept":
-                      "application/vnd.github+json",
-
-                  "Content-Type":
-                      "application/json",
-
-                  "X-GitHub-Api-Version":
-                      "2022-11-28"
-              }
+              headers=update_headers
           )
 
 
@@ -783,30 +794,61 @@ jobs:
                       response.read().decode("utf-8")
                   )
 
+
               print("")
               print("==============================================")
-              print("apps.json UPDATED SUCCESSFULLY")
+
+              if sha:
+
+                  print(
+                      "apps.json UPDATED SUCCESSFULLY"
+                  )
+
+              else:
+
+                  print(
+                      "apps.json CREATED SUCCESSFULLY"
+                  )
+
               print("==============================================")
-              print("App: " + app_name)
-              print("Package: " + package_name)
-              print("Version: " + version)
-              print("Size: " + app_size)
-              print("APK: " + apk_url)
+              print("Application : " + app_name)
+              print("Package     : " + package_name)
+              print("Version     : " + version)
+              print("Size        : " + app_size)
+              print("APK         : " + apk_url)
               print("==============================================")
 
+
               if "content" in result:
-                  print("GitHub Contents API update confirmed.")
+
+                  print(
+                      "GitHub Contents API confirmed."
+                  )
+
 
           except urllib.error.HTTPError as error:
 
               print("")
-              print("==============================================")
-              print("ERROR: apps.json UPDATE FAILED")
-              print("==============================================")
               print(
-                  error.read().decode("utf-8")
+                  "=============================================="
               )
-              print("==============================================")
+              print(
+                  "ERROR: apps.json CREATE/UPDATE FAILED"
+              )
+              print(
+                  "=============================================="
+              )
+
+              error_body = error.read().decode(
+                  "utf-8",
+                  errors="replace"
+              )
+
+              print(error_body)
+
+              print(
+                  "=============================================="
+              )
 
               raise
 
@@ -847,5 +889,5 @@ jobs:
           echo "APK URL:"
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${APK_FILE_NAME}"
           echo ""
-          echo "apps.json updated successfully."
+          echo "apps.json created or updated successfully."
           echo "=============================================="

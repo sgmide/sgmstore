@@ -1,34 +1,58 @@
-name: SGM Store - Build APK Set
+name: SGM Store - Publish AAB
 
 on:
+
   repository_dispatch:
     types:
       - aab_uploaded
 
   workflow_dispatch:
+    inputs:
+
+      app_name:
+        description: "App name"
+        required: true
+        type: string
+
+      package_name:
+        description: "Package name"
+        required: true
+        type: string
+
+      version:
+        description: "App version"
+        required: true
+        type: string
+
+      description:
+        description: "App description"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write
 
+
 jobs:
 
-  build:
+  publish:
 
     runs-on: ubuntu-latest
 
     steps:
 
-      # =====================================================
+      # ==========================================================
       # CHECKOUT
-      # =====================================================
+      # ==========================================================
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
 
-      # =====================================================
-      # JAVA
-      # =====================================================
+      # ==========================================================
+      # JAVA 17
+      # ==========================================================
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -37,148 +61,237 @@ jobs:
           java-version: "17"
 
 
-      # =====================================================
+      # ==========================================================
       # ANDROID SDK
-      # =====================================================
+      # ==========================================================
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
 
-      # =====================================================
-      # CHECK MASTER PASSWORD
-      # =====================================================
+      # ==========================================================
+      # READ APP INFORMATION
+      # ==========================================================
 
-      - name: Check signing password
-        env:
-          MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
+      - name: Read app information
+        shell: bash
         run: |
-          if [ -z "$MASTER_PASSWORD" ]; then
-            echo "SGM_MASTER_PASSWORD secret is missing."
+
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+
+            APP_NAME='${{ github.event.client_payload.app_name }}'
+            PACKAGE_NAME='${{ github.event.client_payload.package_name }}'
+            VERSION='${{ github.event.client_payload.version }}'
+            DESCRIPTION='${{ github.event.client_payload.description }}'
+
+          else
+
+            APP_NAME='${{ inputs.app_name }}'
+            PACKAGE_NAME='${{ inputs.package_name }}'
+            VERSION='${{ inputs.version }}'
+            DESCRIPTION='${{ inputs.description }}'
+
+          fi
+
+
+          # ------------------------------------------------------
+          # Validate
+          # ------------------------------------------------------
+
+          if [ -z "$APP_NAME" ]; then
+            echo "ERROR: App name is empty"
             exit 1
           fi
 
-          echo "Signing password is available."
+          if [ -z "$PACKAGE_NAME" ]; then
+            echo "ERROR: Package name is empty"
+            exit 1
+          fi
+
+          if [ -z "$VERSION" ]; then
+            echo "ERROR: Version is empty"
+            exit 1
+          fi
 
 
-      # =====================================================
+          # ------------------------------------------------------
+          # Validate Android package name
+          # ------------------------------------------------------
+
+          if ! echo "$PACKAGE_NAME" | grep -Eq '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$'; then
+
+            echo "ERROR: Invalid package name:"
+            echo "$PACKAGE_NAME"
+
+            exit 1
+
+          fi
+
+
+          # ------------------------------------------------------
+          # Package name for filenames
+          #
+          # com.sgmsoft.android
+          # ↓
+          # com-sgmsoft-android
+          # ------------------------------------------------------
+
+          PACKAGE_BASE=$(echo "$PACKAGE_NAME" | tr '.' '-')
+
+
+          # ------------------------------------------------------
+          # Release
+          # ------------------------------------------------------
+
+          RELEASE_TAG="app-${PACKAGE_BASE}"
+
+
+          # ------------------------------------------------------
+          # APK Set filename
+          # ------------------------------------------------------
+
+          APK_FILE_NAME="${PACKAGE_BASE}.apks"
+
+
+          echo "APP_NAME=$APP_NAME" >> "$GITHUB_ENV"
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "DESCRIPTION=$DESCRIPTION" >> "$GITHUB_ENV"
+          echo "PACKAGE_BASE=$PACKAGE_BASE" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          echo "APK_FILE_NAME=$APK_FILE_NAME" >> "$GITHUB_ENV"
+
+
+          echo ""
+          echo "======================================"
+          echo "App Name     : $APP_NAME"
+          echo "Package      : $PACKAGE_NAME"
+          echo "Version      : $VERSION"
+          echo "Release Tag  : $RELEASE_TAG"
+          echo "APK Set      : $APK_FILE_NAME"
+          echo "======================================"
+
+
+      # ==========================================================
       # CHECK AAB
-      # =====================================================
+      # ==========================================================
 
-      - name: Check AAB
+      - name: Check uploaded AAB
+        shell: bash
         run: |
 
           if [ ! -f "incoming/app-release.aab" ]; then
-            echo "ERROR: incoming/app-release.aab not found."
+
+            echo "ERROR: incoming/app-release.aab not found"
+
+            echo ""
+            echo "Repository files:"
+            find . -maxdepth 3 -type f | sort
+
             exit 1
+
           fi
 
-          echo "AAB found."
 
+          echo "AAB found:"
           ls -lh incoming/app-release.aab
 
 
-      # =====================================================
-      # READ APP INFORMATION
-      # =====================================================
-
-      - name: Read app information
-        id: metadata
-        env:
-          APP_NAME: ${{ github.event.client_payload.app_name }}
-          PACKAGE_NAME: ${{ github.event.client_payload.package_name }}
-          VERSION: ${{ github.event.client_payload.version }}
-          DESCRIPTION: ${{ github.event.client_payload.description }}
-          SIZE: ${{ github.event.client_payload.size }}
-        run: |
-
-          PACKAGE="$PACKAGE_NAME"
-
-          if [ -z "$PACKAGE" ]; then
-            echo "Package name was not supplied."
-            exit 1
-          fi
-
-          if ! echo "$PACKAGE" | grep -Eq '^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$'; then
-            echo "Invalid package name: $PACKAGE"
-            exit 1
-          fi
-
-          PACKAGE_BASE=$(echo "$PACKAGE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g')
-
-          echo "package=$PACKAGE" >> "$GITHUB_OUTPUT"
-          echo "package_base=$PACKAGE_BASE" >> "$GITHUB_OUTPUT"
-
-          echo "app_name=$APP_NAME" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "description=$DESCRIPTION" >> "$GITHUB_OUTPUT"
-          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
-
-          echo "Package: $PACKAGE"
-          echo "Package base: $PACKAGE_BASE"
-
-
-      # =====================================================
+      # ==========================================================
       # DOWNLOAD BUNDLETOOL
-      # =====================================================
+      # ==========================================================
 
       - name: Download bundletool
+        shell: bash
         run: |
 
           curl -L \
             -o bundletool.jar \
             https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
 
-          ls -lh bundletool.jar
+
+          if [ ! -f "bundletool.jar" ]; then
+
+            echo "ERROR: bundletool download failed"
+            exit 1
+
+          fi
 
 
-      # =====================================================
-      # CREATE SIGNING DIRECTORY
-      # =====================================================
+          echo "bundletool version:"
 
-      - name: Prepare signing directory
-        run: |
-
-          mkdir -p signing
-          mkdir -p output
+          java -jar bundletool.jar version
 
 
-      # =====================================================
-      # RESTORE / CREATE APP SIGNING KEY
-      # =====================================================
+      # ==========================================================
+      # PREPARE SIGNING KEY
+      #
+      # Secret required:
+      #
+      # SGM_MASTER_PASSWORD
+      #
+      # Each package gets its own encrypted JKS:
+      #
+      # signing/com-sgmsoft-android.jks.gpg
+      #
+      # signing/com-sgmsoft-androidaide.jks.gpg
+      # ==========================================================
 
-      - name: Restore signing key
+      - name: Prepare signing key
+        shell: bash
         env:
           MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
         run: |
 
-          PACKAGE_BASE="${{ steps.metadata.outputs.package_base }}"
+          if [ -z "$MASTER_PASSWORD" ]; then
+
+            echo "ERROR: SGM_MASTER_PASSWORD secret is missing"
+
+            exit 1
+
+          fi
+
+
+          mkdir -p signing
+
+
+          KEY_FILE="signing/${PACKAGE_BASE}.jks"
 
           ENCRYPTED_KEY="signing/${PACKAGE_BASE}.jks.gpg"
-          KEYSTORE="signing/${PACKAGE_BASE}.jks"
+
+
+          # ------------------------------------------------------
+          # Existing key
+          # ------------------------------------------------------
 
           if [ -f "$ENCRYPTED_KEY" ]; then
 
-            echo "Existing signing key found."
+            echo "Existing signing key found"
 
             gpg \
               --batch \
               --yes \
               --passphrase "$MASTER_PASSWORD" \
-              --pinentry-mode loopback \
               --decrypt \
-              --output "$KEYSTORE" \
+              --output "$KEY_FILE" \
               "$ENCRYPTED_KEY"
+
+
+          # ------------------------------------------------------
+          # New key
+          # ------------------------------------------------------
 
           else
 
-            echo "No signing key found."
-            echo "Creating new key..."
+            echo "No signing key found"
+
+            echo "Creating new signing key"
+
 
             keytool \
               -genkeypair \
               -v \
-              -keystore "$KEYSTORE" \
+              -keystore "$KEY_FILE" \
               -storetype JKS \
               -alias sgmstore \
               -keyalg RSA \
@@ -186,183 +299,177 @@ jobs:
               -validity 10000 \
               -storepass "$MASTER_PASSWORD" \
               -keypass "$MASTER_PASSWORD" \
-              -dname "CN=SGM Store, OU=SGM, O=SGMSoft, L=India, ST=Kerala, C=IN"
+              -dname "CN=SGM Store, OU=SGM, O=SGM, L=India, ST=Kerala, C=IN"
+
+
+            echo "Encrypting signing key"
+
 
             gpg \
               --batch \
               --yes \
               --passphrase "$MASTER_PASSWORD" \
-              --pinentry-mode loopback \
               --symmetric \
               --cipher-algo AES256 \
               --output "$ENCRYPTED_KEY" \
-              "$KEYSTORE"
+              "$KEY_FILE"
 
-            echo "Encrypted signing key created."
 
-            git config user.name "SGM Store Bot"
-            git config user.email "actions@github.com"
+            echo "Encrypted signing key created"
 
-            git add "$ENCRYPTED_KEY"
 
-            git commit \
-              -m "Add signing key for ${PACKAGE_BASE}" \
-              || true
-
-            git push || true
           fi
 
-          echo "Signing key ready."
+
+          chmod 600 "$KEY_FILE"
 
 
-      # =====================================================
-      # VERIFY KEYSTORE
-      # =====================================================
-
-      - name: Verify signing key
-        env:
-          MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
-        run: |
-
-          PACKAGE_BASE="${{ steps.metadata.outputs.package_base }}"
-
-          keytool \
-            -list \
-            -keystore "signing/${PACKAGE_BASE}.jks" \
-            -storepass "$MASTER_PASSWORD"
-
-          echo "Keystore verified."
-
-
-      # =====================================================
-      # BUILD SIGNED APK SET
+      # ==========================================================
+      # BUILD APK SET
       #
       # IMPORTANT:
-      # NO DEVICE SPEC
-      # NO --MODE=UNIVERSAL
-      # =====================================================
+      #
+      # NO --mode=universal
+      # NO --device-spec
+      #
+      # This creates an APK Set (.apks).
+      # ==========================================================
 
-      - name: Build signed APK Set
+      - name: Build APK Set
+        shell: bash
         env:
           MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
         run: |
 
-          PACKAGE_BASE="${{ steps.metadata.outputs.package_base }}"
+          mkdir -p output
+
+
+          KEY_FILE="signing/${PACKAGE_BASE}.jks"
+
+
+          echo "Building APK Set..."
+
 
           java -Xmx4g \
             -jar bundletool.jar \
             build-apks \
             --bundle="incoming/app-release.aab" \
-            --output="output/app.apks" \
-            --ks="signing/${PACKAGE_BASE}.jks" \
+            --output="output/${APK_FILE_NAME}" \
+            --ks="$KEY_FILE" \
             --ks-key-alias=sgmstore \
             --ks-pass="pass:${MASTER_PASSWORD}" \
             --key-pass="pass:${MASTER_PASSWORD}" \
             --overwrite
 
-          echo "APK Set created."
 
-          ls -lh output/app.apks
+          if [ ! -f "output/${APK_FILE_NAME}" ]; then
 
+            echo "ERROR: APK Set was not created"
 
-      # =====================================================
-      # VERIFY APK SET
-      # =====================================================
-
-      - name: Verify APK Set
-        run: |
-
-          if [ ! -f "output/app.apks" ]; then
-            echo "ERROR: app.apks was not created."
             exit 1
+
           fi
 
-          unzip -l output/app.apks | head -100
 
-          echo "APK Set verification completed."
+          echo ""
+          echo "APK Set created:"
+          ls -lh "output/${APK_FILE_NAME}"
 
 
-      # =====================================================
-      # CREATE APP STORAGE DIRECTORY
-      # =====================================================
+      # ==========================================================
+      # VERIFY APK SET
+      # ==========================================================
 
-      - name: Create app storage
+      - name: Verify APK Set
+        shell: bash
         run: |
 
-          PACKAGE="${{ steps.metadata.outputs.package }}"
-
-          mkdir -p \
-            "sgm-delivery-server/storage/apps/${PACKAGE}"
+          echo "Testing APK Set archive..."
 
 
-      # =====================================================
-      # COPY APK SET
-      # =====================================================
-
-      - name: Copy APK Set
-        run: |
-
-          PACKAGE="${{ steps.metadata.outputs.package }}"
-
-          cp \
-            output/app.apks \
-            "sgm-delivery-server/storage/apps/${PACKAGE}/app.apks"
-
-          ls -lh \
-            "sgm-delivery-server/storage/apps/${PACKAGE}/app.apks"
+          unzip -t "output/${APK_FILE_NAME}"
 
 
-      # =====================================================
-      # CREATE app.json
-      # =====================================================
+          echo ""
+          echo "APK Set verification successful"
 
-      - name: Create app.json
+
+      # ==========================================================
+      # CREATE / UPDATE GITHUB RELEASE
+      #
+      # Example:
+      #
+      # Package:
+      # com.sgmsoft.android
+      #
+      # Release:
+      # app-com-sgmsoft-android
+      #
+      # File:
+      # com-sgmsoft-android.apks
+      # ==========================================================
+
+      - name: Publish GitHub Release
+        shell: bash
         env:
-          APP_NAME: ${{ steps.metadata.outputs.app_name }}
-          PACKAGE_NAME: ${{ steps.metadata.outputs.package }}
-          VERSION: ${{ steps.metadata.outputs.version }}
-          DESCRIPTION: ${{ steps.metadata.outputs.description }}
-          SIZE: ${{ steps.metadata.outputs.size }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
 
-          PACKAGE="${PACKAGE_NAME}"
-
-          APK_SIZE=$(stat -c%s \
-            "sgm-delivery-server/storage/apps/${PACKAGE}/app.apks")
-
-          APK_SIZE_MB=$(awk \
-            "BEGIN {printf \"%.2f MB\", ${APK_SIZE}/1024/1024}")
-
-          cat > \
-            "sgm-delivery-server/storage/apps/${PACKAGE}/app.json" \
-            <<EOF
-          {
-            "name": "${APP_NAME}",
-            "package": "${PACKAGE_NAME}",
-            "version": "${VERSION}",
-            "description": "${DESCRIPTION}",
-            "size": "${APK_SIZE_MB}",
-            "size_bytes": ${APK_SIZE},
-            "available": true
-          }
-          EOF
-
-          cat \
-            "sgm-delivery-server/storage/apps/${PACKAGE}/app.json"
+          echo "Release tag:"
+          echo "$RELEASE_TAG"
 
 
-      # =====================================================
+          # ------------------------------------------------------
+          # Existing release
+          # ------------------------------------------------------
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+
+            echo "Release already exists"
+            echo "Updating existing release"
+
+
+            gh release upload \
+              "$RELEASE_TAG" \
+              "output/${APK_FILE_NAME}" \
+              --clobber
+
+
+            gh release edit \
+              "$RELEASE_TAG" \
+              --title "$APP_NAME $VERSION" \
+              --notes "SGM Store package: ${PACKAGE_NAME}"
+
+
+          # ------------------------------------------------------
+          # New release
+          # ------------------------------------------------------
+
+          else
+
+            echo "Creating new release"
+
+
+            gh release create \
+              "$RELEASE_TAG" \
+              "output/${APK_FILE_NAME}" \
+              --title "$APP_NAME $VERSION" \
+              --notes "SGM Store package: ${PACKAGE_NAME}"
+
+
+          fi
+
+
+          echo ""
+          echo "GitHub Release published successfully"
+
+
+      # ==========================================================
       # UPDATE apps.json
-      # Existing package = UPDATE
-      # New package = ADD
-      # =====================================================
+      # ==========================================================
 
       - name: Update apps.json
-        env:
-          APP_NAME: ${{ steps.metadata.outputs.app_name }}
-          PACKAGE_NAME: ${{ steps.metadata.outputs.package }}
-          VERSION: ${{ steps.metadata.outputs.version }}
-          DESCRIPTION: ${{ steps.metadata.outputs.description }}
+        shell: bash
         run: |
 
           python3 <<'PY'
@@ -370,133 +477,210 @@ jobs:
           import json
           import os
 
-          file = "apps.json"
 
-          app = {
-              "name": os.environ.get("APP_NAME", ""),
-              "package": os.environ.get("PACKAGE_NAME", ""),
-              "version": os.environ.get("VERSION", ""),
-              "description": os.environ.get("DESCRIPTION", ""),
-              "download": "/v1/apps/" +
-                          os.environ.get("PACKAGE_NAME", "") +
-                          "/download"
-          }
+          APPS_FILE = "apps.json"
 
-          if os.path.exists(file):
+
+          app_name = os.environ["APP_NAME"]
+          package_name = os.environ["PACKAGE_NAME"]
+          version = os.environ["VERSION"]
+          description = os.environ["DESCRIPTION"]
+          release_tag = os.environ["RELEASE_TAG"]
+          apk_file_name = os.environ["APK_FILE_NAME"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+
+
+          # ------------------------------------------------------
+          # GitHub Release URL
+          # ------------------------------------------------------
+
+          download_url = (
+              "https://github.com/"
+              + repository
+              + "/releases/download/"
+              + release_tag
+              + "/"
+              + apk_file_name
+          )
+
+
+          print("")
+          print("Download URL:")
+          print(download_url)
+          print("")
+
+
+          # ------------------------------------------------------
+          # Read existing apps.json
+          # ------------------------------------------------------
+
+          if os.path.exists(APPS_FILE):
 
               try:
-                  with open(file, "r", encoding="utf-8") as f:
+
+                  with open(
+                      APPS_FILE,
+                      "r",
+                      encoding="utf-8"
+                  ) as f:
+
                       apps = json.load(f)
 
-                  if not isinstance(apps, list):
-                      apps = []
 
               except Exception:
+
+                  print("Existing apps.json is invalid.")
+                  print("Creating a new catalog.")
+
                   apps = []
 
+
           else:
+
+              print("apps.json does not exist.")
+              print("Creating new catalog.")
+
               apps = []
 
-          found = False
 
-          for i in range(len(apps)):
+          if not isinstance(apps, list):
 
-              if apps[i].get("package") == app["package"]:
+              apps = []
 
-                  apps[i] = app
-                  found = True
+
+          # ------------------------------------------------------
+          # New app entry
+          # ------------------------------------------------------
+
+          new_app = {
+
+              "name": app_name,
+
+              "package": package_name,
+
+              "version": version,
+
+              "description": description,
+
+              "download": download_url
+
+          }
+
+
+          # ------------------------------------------------------
+          # Update existing package
+          # ------------------------------------------------------
+
+          updated = False
+
+
+          for index in range(len(apps)):
+
+              if apps[index].get("package") == package_name:
+
+                  apps[index] = new_app
+
+                  updated = True
+
+                  print(
+                      "Updated existing package:",
+                      package_name
+                  )
+
                   break
 
-          if not found:
-              apps.append(app)
 
-          with open(file, "w", encoding="utf-8") as f:
+          # ------------------------------------------------------
+          # Add new package
+          # ------------------------------------------------------
+
+          if not updated:
+
+              apps.append(new_app)
+
+              print(
+                  "Added new package:",
+                  package_name
+              )
+
+
+          # ------------------------------------------------------
+          # Save
+          # ------------------------------------------------------
+
+          with open(
+              APPS_FILE,
+              "w",
+              encoding="utf-8"
+          ) as f:
 
               json.dump(
                   apps,
                   f,
-                  indent=2,
-                  ensure_ascii=False
+                  ensure_ascii=False,
+                  indent=2
               )
 
-          print(json.dumps(
-              apps,
-              indent=2,
-              ensure_ascii=False
-          ))
+              f.write("\n")
+
+
+          print("")
+          print("apps.json updated successfully")
+          print("")
+
 
           PY
 
 
-      # =====================================================
-      # SHOW RESULT
-      # =====================================================
+          echo "--------------------------------------"
+          cat apps.json
+          echo "--------------------------------------"
 
-      - name: Show generated files
+
+      # ==========================================================
+      # COMMIT apps.json
+      # ==========================================================
+
+      - name: Commit apps.json
+        shell: bash
         run: |
-
-          echo ""
-          echo "=========================================="
-          echo "SGM STORE BUILD COMPLETED"
-          echo "=========================================="
-
-          PACKAGE="${{ steps.metadata.outputs.package }}"
-
-          echo ""
-          echo "Package:"
-          echo "$PACKAGE"
-
-          echo ""
-          echo "APK Set:"
-          ls -lh \
-            "sgm-delivery-server/storage/apps/${PACKAGE}/app.apks"
-
-          echo ""
-          echo "Metadata:"
-          cat \
-            "sgm-delivery-server/storage/apps/${PACKAGE}/app.json"
-
-          echo ""
-          echo "=========================================="
-
-
-      # =====================================================
-      # COMMIT EVERYTHING
-      # =====================================================
-
-      - name: Commit generated app files
-        run: |
-
-          PACKAGE="${{ steps.metadata.outputs.package }}"
 
           git config user.name "SGM Store Bot"
-          git config user.email "actions@github.com"
 
-          git add \
-            apps.json \
-            "sgm-delivery-server/storage/apps/${PACKAGE}/"
-
-          git status
-
-          git diff --cached --stat
-
-          git commit \
-            -m "Build ${PACKAGE} APK set" \
-            || echo "Nothing to commit."
-
-          git push
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
 
 
-      # =====================================================
-      # CLEAN PLAINTEXT KEY
-      # =====================================================
+          git add apps.json
+
+
+          if git diff --cached --quiet; then
+
+            echo "No apps.json changes"
+
+          else
+
+            git commit \
+              -m "Update ${PACKAGE_NAME} ${VERSION}"
+
+            git push
+
+          fi
+
+
+      # ==========================================================
+      # CLEANUP
+      # ==========================================================
 
       - name: Cleanup
         if: always()
+        shell: bash
         run: |
 
-          rm -f signing/*.jks
           rm -f bundletool.jar
+
+          rm -f "signing/${PACKAGE_BASE}.jks"
+
           rm -rf output
 
-          echo "Cleanup completed."
+          echo "Cleanup complete"

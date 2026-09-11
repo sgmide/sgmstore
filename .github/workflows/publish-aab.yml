@@ -30,6 +30,7 @@ on:
         default: ""
         type: string
 
+
 permissions:
   contents: write
 
@@ -146,7 +147,7 @@ jobs:
           #
           # com.sgmsoft.android
           #
-          # becomes
+          # ->
           #
           # com-sgmsoft-android
           # ------------------------------------------------------
@@ -155,17 +156,31 @@ jobs:
 
 
           # ------------------------------------------------------
-          # GitHub Release tag
+          # Release tag
           # ------------------------------------------------------
 
           RELEASE_TAG="app-${PACKAGE_BASE}"
 
 
           # ------------------------------------------------------
-          # APK Set filename
+          # APKS filename
           # ------------------------------------------------------
 
-          APK_FILE_NAME="${PACKAGE_BASE}.apks"
+          APKS_FILE_NAME="${PACKAGE_BASE}.apks"
+
+
+          # ------------------------------------------------------
+          # APK filename
+          # ------------------------------------------------------
+
+          APK_FILE_NAME="${PACKAGE_BASE}.apk"
+
+
+          # ------------------------------------------------------
+          # Universal APKS filename
+          # ------------------------------------------------------
+
+          UNIVERSAL_APKS_FILE_NAME="${PACKAGE_BASE}-universal.apks"
 
 
           # ------------------------------------------------------
@@ -181,17 +196,20 @@ jobs:
             echo "EOF"
             echo "PACKAGE_BASE=$PACKAGE_BASE"
             echo "RELEASE_TAG=$RELEASE_TAG"
+            echo "APKS_FILE_NAME=$APKS_FILE_NAME"
             echo "APK_FILE_NAME=$APK_FILE_NAME"
+            echo "UNIVERSAL_APKS_FILE_NAME=$UNIVERSAL_APKS_FILE_NAME"
           } >> "$GITHUB_ENV"
 
 
           echo ""
           echo "======================================"
-          echo "App Name     : $APP_NAME"
-          echo "Package      : $PACKAGE_NAME"
-          echo "Version      : $VERSION"
-          echo "Release Tag  : $RELEASE_TAG"
-          echo "APK Set      : $APK_FILE_NAME"
+          echo "App Name       : $APP_NAME"
+          echo "Package        : $PACKAGE_NAME"
+          echo "Version        : $VERSION"
+          echo "Release Tag    : $RELEASE_TAG"
+          echo "APKS           : $APKS_FILE_NAME"
+          echo "APK            : $APK_FILE_NAME"
           echo "======================================"
 
 
@@ -248,17 +266,6 @@ jobs:
 
       # ==========================================================
       # PREPARE SIGNING KEY
-      #
-      # Required repository secret:
-      #
-      # SGM_MASTER_PASSWORD
-      #
-      # Each application has its own encrypted key:
-      #
-      # signing/
-      #   com-sgmsoft-android.jks.gpg
-      #   com-sgmsoft-androidaide.jks.gpg
-      #
       # ==========================================================
 
       - name: Prepare signing key
@@ -363,7 +370,6 @@ jobs:
 
             echo "Encrypted signing key created"
 
-
           fi
 
 
@@ -371,15 +377,13 @@ jobs:
 
 
       # ==========================================================
-      # BUILD APK SET
+      # BUILD DEVICE APK SET
       #
-      # NO --mode=universal
-      # NO --device-spec
+      # This creates:
       #
-      # Result:
+      # com-sgmsoft-example.apks
       #
-      # com-sgmsoft-android.apks
-      #
+      # containing split APKs.
       # ==========================================================
 
       - name: Build APK Set
@@ -402,7 +406,7 @@ jobs:
             -jar bundletool.jar \
             build-apks \
             --bundle="incoming/app-release.aab" \
-            --output="output/${APK_FILE_NAME}" \
+            --output="output/${APKS_FILE_NAME}" \
             --ks="$KEY_FILE" \
             --ks-key-alias=sgmstore \
             --ks-pass="pass:${MASTER_PASSWORD}" \
@@ -410,7 +414,7 @@ jobs:
             --overwrite
 
 
-          if [ ! -f "output/${APK_FILE_NAME}" ]; then
+          if [ ! -f "output/${APKS_FILE_NAME}" ]; then
 
             echo "ERROR: APK Set was not created"
 
@@ -421,11 +425,98 @@ jobs:
 
           echo ""
           echo "APK Set created:"
+          ls -lh "output/${APKS_FILE_NAME}"
+
+
+      # ==========================================================
+      # BUILD UNIVERSAL APK
+      #
+      # This creates a universal APK that can be installed
+      # directly on supported devices.
+      # ==========================================================
+
+      - name: Build Universal APK
+        shell: bash
+        env:
+          MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
+
+        run: |
+
+          KEY_FILE="signing/${PACKAGE_BASE}.jks"
+
+
+          echo "Building Universal APK..."
+
+
+          java -Xmx4g \
+            -jar bundletool.jar \
+            build-apks \
+            --bundle="incoming/app-release.aab" \
+            --output="output/${UNIVERSAL_APKS_FILE_NAME}" \
+            --mode=universal \
+            --ks="$KEY_FILE" \
+            --ks-key-alias=sgmstore \
+            --ks-pass="pass:${MASTER_PASSWORD}" \
+            --key-pass="pass:${MASTER_PASSWORD}" \
+            --overwrite
+
+
+          if [ ! -f "output/${UNIVERSAL_APKS_FILE_NAME}" ]; then
+
+            echo "ERROR: Universal APK set was not created"
+
+            exit 1
+
+          fi
+
+
+          echo ""
+          echo "Universal APK set created:"
+          ls -lh "output/${UNIVERSAL_APKS_FILE_NAME}"
+
+
+      # ==========================================================
+      # EXTRACT UNIVERSAL APK
+      # ==========================================================
+
+      - name: Extract Universal APK
+        shell: bash
+        run: |
+
+          echo "Extracting universal.apk..."
+
+
+          unzip -l \
+            "output/${UNIVERSAL_APKS_FILE_NAME}"
+
+
+          unzip -j \
+            "output/${UNIVERSAL_APKS_FILE_NAME}" \
+            "universal.apk" \
+            -d output
+
+
+          if [ ! -f "output/universal.apk" ]; then
+
+            echo "ERROR: universal.apk not found"
+
+            exit 1
+
+          fi
+
+
+          mv \
+            "output/universal.apk" \
+            "output/${APK_FILE_NAME}"
+
+
+          echo ""
+          echo "Universal APK:"
           ls -lh "output/${APK_FILE_NAME}"
 
 
       # ==========================================================
-      # VERIFY APK SET
+      # VERIFY APKS
       # ==========================================================
 
       - name: Verify APK Set
@@ -435,7 +526,8 @@ jobs:
           echo "Testing APK Set archive..."
 
 
-          unzip -t "output/${APK_FILE_NAME}"
+          unzip -t \
+            "output/${APKS_FILE_NAME}"
 
 
           echo ""
@@ -443,19 +535,44 @@ jobs:
 
 
       # ==========================================================
+      # VERIFY UNIVERSAL APK
+      # ==========================================================
+
+      - name: Verify Universal APK
+        shell: bash
+        run: |
+
+          echo "Checking universal APK..."
+
+
+          if [ ! -s "output/${APK_FILE_NAME}" ]; then
+
+            echo "ERROR: Universal APK is empty"
+
+            exit 1
+
+          fi
+
+
+          file \
+            "output/${APK_FILE_NAME}"
+
+
+          echo ""
+          echo "Universal APK verification successful"
+
+
+      # ==========================================================
       # PUBLISH GITHUB RELEASE
       #
-      # Example:
-      #
-      # Package:
-      # com.sgmsoft.android
-      #
       # Release:
-      # app-com-sgmsoft-android
       #
-      # File:
-      # com-sgmsoft-android.apks
+      # app-com-sgmsoft-nuhameharin
       #
+      # Assets:
+      #
+      # com-sgmsoft-nuhameharin.apks
+      # com-sgmsoft-nuhameharin.apk
       # ==========================================================
 
       - name: Publish GitHub Release
@@ -481,6 +598,7 @@ jobs:
 
             gh release upload \
               "$RELEASE_TAG" \
+              "output/${APKS_FILE_NAME}" \
               "output/${APK_FILE_NAME}" \
               --clobber
 
@@ -502,10 +620,10 @@ jobs:
 
             gh release create \
               "$RELEASE_TAG" \
+              "output/${APKS_FILE_NAME}" \
               "output/${APK_FILE_NAME}" \
               --title "$APP_NAME $VERSION" \
               --notes "SGM Store package: ${PACKAGE_NAME}"
-
 
           fi
 
@@ -517,12 +635,16 @@ jobs:
       # ==========================================================
       # UPDATE apps.json
       #
-      # GitHub Release URL:
+      # Result:
       #
-      # https://github.com/sgmide/sgmstore/releases/download/
-      # app-com-sgmsoft-android/
-      # com-sgmsoft-android.apks
-      #
+      # {
+      #   "name": "...",
+      #   "package": "...",
+      #   "version": "...",
+      #   "description": "...",
+      #   "download": "...apk",
+      #   "apks": "...apks"
+      # }
       # ==========================================================
 
       - name: Update apps.json
@@ -542,16 +664,20 @@ jobs:
           package_name = os.environ["PACKAGE_NAME"]
           version = os.environ["VERSION"]
           description = os.environ["DESCRIPTION"]
+
           release_tag = os.environ["RELEASE_TAG"]
+
           apk_file_name = os.environ["APK_FILE_NAME"]
+          apks_file_name = os.environ["APKS_FILE_NAME"]
+
           repository = os.environ["GITHUB_REPOSITORY"]
 
 
           # ------------------------------------------------------
-          # GitHub Release download URL
+          # APK URL
           # ------------------------------------------------------
 
-          download_url = (
+          apk_url = (
               "https://github.com/"
               + repository
               + "/releases/download/"
@@ -561,10 +687,27 @@ jobs:
           )
 
 
+          # ------------------------------------------------------
+          # APKS URL
+          # ------------------------------------------------------
+
+          apks_url = (
+              "https://github.com/"
+              + repository
+              + "/releases/download/"
+              + release_tag
+              + "/"
+              + apks_file_name
+          )
+
+
           print("")
           print("======================================")
-          print("GitHub Release URL:")
-          print(download_url)
+          print("APK URL:")
+          print(apk_url)
+          print("")
+          print("APKS URL:")
+          print(apks_url)
           print("======================================")
 
 
@@ -618,7 +761,9 @@ jobs:
 
               "description": description,
 
-              "download": download_url
+              "download": apk_url,
+
+              "apks": apks_url
 
           }
 
@@ -681,7 +826,7 @@ jobs:
 
 
           print("")
-          print("apps.json:")
+          print("Updated apps.json:")
           print("")
 
 
@@ -692,14 +837,7 @@ jobs:
 
 
       # ==========================================================
-      # SAVE ENCRYPTED SIGNING KEY + apps.json
-      #
-      # IMPORTANT:
-      #
-      # The encrypted JKS MUST be committed.
-      #
-      # Otherwise the next GitHub Actions run creates a new key.
-      #
+      # COMMIT apps.json + ENCRYPTED SIGNING KEY
       # ==========================================================
 
       - name: Commit catalog and signing key
@@ -715,8 +853,8 @@ jobs:
           git add apps.json
 
 
-          # Add encrypted signing key
-          git add "signing/${PACKAGE_BASE}.jks.gpg"
+          git add \
+            "signing/${PACKAGE_BASE}.jks.gpg"
 
 
           if git diff --cached --quiet; then
@@ -735,9 +873,6 @@ jobs:
 
       # ==========================================================
       # CLEANUP
-      #
-      # Plain JKS is NEVER committed.
-      # Only encrypted .gpg remains in repository.
       # ==========================================================
 
       - name: Cleanup
@@ -747,7 +882,8 @@ jobs:
 
           rm -f bundletool.jar
 
-          rm -f "signing/${PACKAGE_BASE}.jks"
+          rm -f \
+            "signing/${PACKAGE_BASE}.jks"
 
           rm -rf output
 

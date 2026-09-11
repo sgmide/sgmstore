@@ -1,9 +1,9 @@
 name: SGM Store - Publish AAB
 
 on:
-  push:
-    paths:
-      - "incoming/app-release.aab"
+  repository_dispatch:
+    types:
+      - aab_uploaded
 
   workflow_dispatch:
 
@@ -58,6 +58,60 @@ jobs:
 
 
       # ==========================================
+      # GET APP INFORMATION
+      # ==========================================
+
+      - name: Get app information
+        shell: bash
+        run: |
+          set -e
+
+          APP_NAME="${{ github.event.client_payload.app_name }}"
+          PACKAGE_NAME="${{ github.event.client_payload.package_name }}"
+
+          if [ -z "$APP_NAME" ]; then
+            APP_NAME="SGM Store App"
+          fi
+
+          if [ -z "$PACKAGE_NAME" ]; then
+            echo "ERROR: package_name not supplied"
+            exit 1
+          fi
+
+          echo "APP_NAME=$APP_NAME" >> "$GITHUB_ENV"
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
+
+          echo "App: $APP_NAME"
+          echo "Package: $PACKAGE_NAME"
+
+
+      # ==========================================
+      # CREATE APK FILENAME
+      # ==========================================
+
+      - name: Create APK filename
+        shell: bash
+        run: |
+          set -e
+
+          APK_NAME=$(echo "$PACKAGE_NAME" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's/[^a-z0-9]/-/g' \
+            | sed 's/^-*//' \
+            | sed 's/-*$//')
+
+          if [ -z "$APK_NAME" ]; then
+            APK_NAME="app"
+          fi
+
+          APK_FILE_NAME="${APK_NAME}.apk"
+
+          echo "APK_FILE_NAME=$APK_FILE_NAME" >> "$GITHUB_ENV"
+
+          echo "APK filename: $APK_FILE_NAME"
+
+
+      # ==========================================
       # DOWNLOAD BUNDLETOOL
       # ==========================================
 
@@ -85,6 +139,11 @@ jobs:
           MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
         run: |
           set -e
+
+          if [ -z "$MASTER_PASSWORD" ]; then
+            echo "ERROR: SGM_MASTER_PASSWORD secret is missing"
+            exit 1
+          fi
 
           mkdir -p signing
 
@@ -191,13 +250,18 @@ jobs:
       # ==========================================
 
       - name: Extract APKs
+        shell: bash
         run: |
           set -e
+
+          rm -rf generated-apks
 
           mkdir -p generated-apks
 
           unzip -o app.apks \
             -d generated-apks
+
+          echo "Generated APK files:"
 
           find generated-apks \
             -type f \
@@ -206,7 +270,7 @@ jobs:
 
 
       # ==========================================
-      # CREATE UNIVERSAL APK
+      # BUILD UNIVERSAL APK
       # ==========================================
 
       - name: Build universal APK
@@ -226,14 +290,23 @@ jobs:
             --key-pass=pass:"$MASTER_PASSWORD" \
             --overwrite
 
+          rm -rf universal
+
           mkdir -p universal
 
           unzip -o universal.apks \
             -d universal
 
-          cp universal/universal.apk app-release.apk
+          if [ ! -f "universal/universal.apk" ]; then
+            echo "ERROR: universal.apk not found"
+            exit 1
+          fi
 
-          ls -lh app-release.apk
+          cp \
+            universal/universal.apk \
+            "$APK_FILE_NAME"
+
+          ls -lh "$APK_FILE_NAME"
 
 
       # ==========================================
@@ -251,13 +324,13 @@ jobs:
             | tail -1)
 
           if [ -z "$APKSIGNER" ]; then
-            echo "apksigner not found"
+            echo "ERROR: apksigner not found"
             exit 1
           fi
 
           "$APKSIGNER" verify \
             --verbose \
-            app-release.apk
+            "$APK_FILE_NAME"
 
           echo "APK signature verified."
 
@@ -270,11 +343,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "sgmstore-${{ github.run_number }}"
-          name: "SGM Store Release ${{ github.run_number }}"
+          name: "SGM Store - ${{ env.APP_NAME }} - ${{ github.run_number }}"
           generate_release_notes: true
 
           files: |
-            app-release.apk
+            ${{ env.APK_FILE_NAME }}
             app.apks
 
 
@@ -291,3 +364,6 @@ jobs:
           rm -f aab-manifest.xml
           rm -f app.apks
           rm -f universal.apks
+          rm -f "$APK_FILE_NAME"
+          rm -rf universal
+          rm -rf generated-apks

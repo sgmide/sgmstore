@@ -1,780 +1,851 @@
 name: SGM Store - AAB to Signed APK
 
 on:
-repository_dispatch:
-types:
-- aab_uploaded
-
-workflow_dispatch:
+  repository_dispatch:
+    types:
+      - aab_uploaded
 
 permissions:
-contents: write
+  contents: write
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ==========================================
+      # CHECKOUT
+      # ==========================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+
+      # ==========================================
+      # JAVA 17
+      # ==========================================
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+
+      # ==========================================
+      # CHECK MASTER PASSWORD
+      # ==========================================
+
+      - name: Check SGM_MASTER_PASSWORD
+        shell: bash
+        env:
+          MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
+        run: |
+          set -e
+
+          if [ -z "$MASTER_PASSWORD" ]; then
+            echo "ERROR: SGM_MASTER_PASSWORD is not configured."
+            exit 1
+          fi
+
+          echo "SGM_MASTER_PASSWORD is available."
+
+
+      # ==========================================
+      # CHECK AAB
+      # ==========================================
+
+      - name: Check uploaded AAB
+        shell: bash
+        run: |
+          set -e
+
+          if [ ! -f "incoming/app-release.aab" ]; then
+            echo "ERROR: incoming/app-release.aab not found."
+            exit 1
+          fi
+
+          echo "AAB found:"
+          ls -lh incoming/app-release.aab
+
+
+      # ==========================================
+      # READ APP INFORMATION
+      # ==========================================
+
+      - name: Read app information
+        shell: bash
+        env:
+          INPUT_APP_NAME: ${{ github.event.client_payload.app_name }}
+          INPUT_PACKAGE_NAME: ${{ github.event.client_payload.package_name }}
+          INPUT_VERSION: ${{ github.event.client_payload.version }}
+          INPUT_DESCRIPTION: ${{ github.event.client_payload.description }}
+          INPUT_SIZE: ${{ github.event.client_payload.size }}
+        run: |
+          set -e
+
+          APP_NAME="$INPUT_APP_NAME"
+          PACKAGE_NAME="$INPUT_PACKAGE_NAME"
+          VERSION="$INPUT_VERSION"
+          DESCRIPTION="$INPUT_DESCRIPTION"
+          SIZE="$INPUT_SIZE"
+
+          if [ -z "$APP_NAME" ]; then
+            APP_NAME="Unknown App"
+          fi
+
+          if [ -z "$PACKAGE_NAME" ]; then
+            echo "ERROR: Package name was not provided."
+            exit 1
+          fi
 
-build:
+          if [ -z "$VERSION" ]; then
+            VERSION="1.0"
+          fi
 
-runs-on: ubuntu-latest
+          if [ -z "$DESCRIPTION" ]; then
+            DESCRIPTION="Application published on SGM Store"
+          fi
 
-steps:
+          if [ -z "$SIZE" ]; then
+            SIZE="Unknown"
+          fi
 
-  # ==========================================
-  # CHECKOUT
-  # ==========================================
+          # ------------------------------------------
+          # Write normal values
+          # ------------------------------------------
 
-  - name: Checkout repository
-    uses: actions/checkout@v4
-    with:
-      fetch-depth: 0
+          printf 'APP_NAME=%s\n' "$APP_NAME" >> "$GITHUB_ENV"
+          printf 'PACKAGE_NAME=%s\n' "$PACKAGE_NAME" >> "$GITHUB_ENV"
+          printf 'VERSION=%s\n' "$VERSION" >> "$GITHUB_ENV"
+          printf 'APP_SIZE=%s\n' "$SIZE" >> "$GITHUB_ENV"
 
+          # ------------------------------------------
+          # Write multiline description safely
+          # ------------------------------------------
 
-  # ==========================================
-  # JAVA 17
-  # ==========================================
+          {
+            echo 'DESCRIPTION<<SGM_DESCRIPTION_EOF'
+            printf '%s\n' "$DESCRIPTION"
+            echo 'SGM_DESCRIPTION_EOF'
+          } >> "$GITHUB_ENV"
 
-  - name: Setup Java 17
-    uses: actions/setup-java@v4
-    with:
-      distribution: temurin
-      java-version: '17'
+          echo "=============================================="
+          echo "APP INFORMATION"
+          echo "=============================================="
+          echo "Name: $APP_NAME"
+          echo "Package: $PACKAGE_NAME"
+          echo "Version: $VERSION"
+          echo "Size: $SIZE"
+          echo "Description:"
+          echo "$DESCRIPTION"
+          echo "=============================================="
 
 
-  # ==========================================
-  # CHECK MASTER PASSWORD
-  # ==========================================
+      # ==========================================
+      # CREATE APK FILE NAME
+      # ==========================================
 
-  - name: Check SGM_MASTER_PASSWORD
-    shell: bash
-    env:
-      MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
-    run: |
+      - name: Create APK filename
+        shell: bash
+        run: |
+          set -e
 
-      set -e
+          APK_BASE_NAME=$(echo "$PACKAGE_NAME" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's/[^a-z0-9]/-/g' \
+            | sed 's/^-*//' \
+            | sed 's/-*$//')
 
-      if [ -z "$MASTER_PASSWORD" ]; then
+          if [ -z "$APK_BASE_NAME" ]; then
+            echo "ERROR: Invalid APK filename."
+            exit 1
+          fi
 
-        echo "ERROR: SGM_MASTER_PASSWORD is not configured."
+          APK_FILE_NAME="${APK_BASE_NAME}.apk"
 
-        exit 1
+          echo "APK_FILE_NAME=$APK_FILE_NAME" >> "$GITHUB_ENV"
 
-      fi
+          echo "APK filename: $APK_FILE_NAME"
 
-      echo "SGM_MASTER_PASSWORD is available."
 
+      # ==========================================
+      # CREATE RELEASE TAG
+      # ==========================================
 
-  # ==========================================
-  # CHECK AAB
-  # ==========================================
+      - name: Create release tag
+        shell: bash
+        run: |
+          set -e
 
-  - name: Check uploaded AAB
-    shell: bash
-    run: |
+          RELEASE_NAME=$(echo "$PACKAGE_NAME" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's/[^a-z0-9]/-/g' \
+            | sed 's/^-*//' \
+            | sed 's/-*$//')
 
-      set -e
+          if [ -z "$RELEASE_NAME" ]; then
+            echo "ERROR: Invalid release tag."
+            exit 1
+          fi
 
-      if [ ! -f "incoming/app-release.aab" ]; then
+          RELEASE_TAG="app-${RELEASE_NAME}"
 
-        echo "ERROR: incoming/app-release.aab not found."
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
 
-        exit 1
+          echo "Release tag: $RELEASE_TAG"
 
-      fi
 
-      ls -lh incoming/app-release.aab
+      # ==========================================
+      # DOWNLOAD BUNDLETOOL
+      # ==========================================
 
+      - name: Download bundletool
+        shell: bash
+        run: |
+          set -e
 
-  # ==========================================
-  # READ APP INFORMATION
-  # ==========================================
+          BUNDLETOOL_VERSION="1.18.3"
 
-  - name: Read app information
-    shell: bash
-    run: |
+          curl -fL \
+            -o bundletool.jar \
+            "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
 
-      set -e
+          if [ ! -f "bundletool.jar" ]; then
+            echo "ERROR: bundletool.jar download failed."
+            exit 1
+          fi
 
-      APP_NAME="${{ github.event.client_payload.app_name }}"
-      PACKAGE_NAME="${{ github.event.client_payload.package_name }}"
-      VERSION="${{ github.event.client_payload.version }}"
-      DESCRIPTION="${{ github.event.client_payload.description }}"
-      SIZE="${{ github.event.client_payload.size }}"
+          echo "Bundletool downloaded:"
+          ls -lh bundletool.jar
 
-      if [ -z "$APP_NAME" ]; then
-        APP_NAME="Unknown App"
-      fi
 
-      if [ -z "$PACKAGE_NAME" ]; then
+      # ==========================================
+      # RESTORE OR CREATE PERMANENT KEYSTORE
+      # ==========================================
 
-        echo "ERROR: Package name was not provided."
+      - name: Restore or create permanent signing keystore
+        shell: bash
+        env:
+          MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
+        run: |
+          set -e
 
-        exit 1
+          mkdir -p signing
 
-      fi
+          ENCRYPTED_KEYSTORE="signing/sgmstore.jks.gpg"
+          KEYSTORE="signing/sgmstore.jks"
 
-      if [ -z "$VERSION" ]; then
-        VERSION="1.0"
-      fi
+          # --------------------------------------
+          # EXISTING KEYSTORE
+          # --------------------------------------
 
-      if [ -z "$DESCRIPTION" ]; then
-        DESCRIPTION="Application published on SGM Store"
-      fi
+          if [ -f "$ENCRYPTED_KEYSTORE" ]; then
 
-      if [ -z "$SIZE" ]; then
-        SIZE="Unknown"
-      fi
+            echo "Permanent encrypted keystore found."
 
-      echo "APP_NAME=$APP_NAME" >> "$GITHUB_ENV"
-      echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
-      echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-      echo "DESCRIPTION=$DESCRIPTION" >> "$GITHUB_ENV"
-      echo "APP_SIZE=$SIZE" >> "$GITHUB_ENV"
+            gpg \
+              --batch \
+              --yes \
+              --pinentry-mode loopback \
+              --passphrase "$MASTER_PASSWORD" \
+              --decrypt \
+              --output "$KEYSTORE" \
+              "$ENCRYPTED_KEYSTORE"
 
-      echo "=============================================="
-      echo "APP INFORMATION"
-      echo "=============================================="
-      echo "Name: $APP_NAME"
-      echo "Package: $PACKAGE_NAME"
-      echo "Version: $VERSION"
-      echo "Size: $SIZE"
-      echo "=============================================="
+            echo "Permanent keystore restored."
 
+          else
 
-  # ==========================================
-  # CREATE APK FILE NAME
-  # ==========================================
+            # ----------------------------------
+            # CREATE NEW KEYSTORE
+            # ----------------------------------
 
-  - name: Create APK filename
-    shell: bash
-    run: |
+            echo "No permanent keystore found."
+            echo "Creating permanent SGM Store signing key..."
 
-      set -e
+            keytool \
+              -genkeypair \
+              -v \
+              -keystore "$KEYSTORE" \
+              -alias sgmstore \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass "$MASTER_PASSWORD" \
+              -keypass "$MASTER_PASSWORD" \
+              -dname "CN=SGM Store, OU=SGM, O=SGM, L=India, ST=Kerala, C=IN"
 
-      APK_FILE_NAME=$(echo "$PACKAGE_NAME" \
-        | tr '[:upper:]' '[:lower:]' \
-        | sed 's/[^a-z0-9]/-/g' \
-        | sed 's/^-*//' \
-        | sed 's/-*$//')
+            echo "Keystore created."
 
-      if [ -z "$APK_FILE_NAME" ]; then
+            # ----------------------------------
+            # ENCRYPT KEYSTORE
+            # ----------------------------------
 
-        echo "ERROR: Invalid APK filename."
+            gpg \
+              --batch \
+              --yes \
+              --pinentry-mode loopback \
+              --passphrase "$MASTER_PASSWORD" \
+              --symmetric \
+              --cipher-algo AES256 \
+              --output "$ENCRYPTED_KEYSTORE" \
+              "$KEYSTORE"
 
-        exit 1
+            echo "Keystore encrypted."
 
-      fi
+            # ----------------------------------
+            # DELETE PLAINTEXT KEYSTORE
+            # ----------------------------------
 
-      APK_FILE_NAME="${APK_FILE_NAME}.apk"
+            rm -f "$KEYSTORE"
 
-      echo "APK_FILE_NAME=$APK_FILE_NAME" >> "$GITHUB_ENV"
+            # ----------------------------------
+            # SAVE ENCRYPTED KEYSTORE
+            # ----------------------------------
 
-      echo "APK filename: $APK_FILE_NAME"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+            git add "$ENCRYPTED_KEYSTORE"
 
-  # ==========================================
-  # CREATE RELEASE TAG
-  # ==========================================
+            if git diff --cached --quiet; then
 
-  - name: Create release tag
-    shell: bash
-    run: |
+              echo "No keystore changes to commit."
 
-      set -e
+            else
 
-      RELEASE_NAME=$(echo "$PACKAGE_NAME" \
-        | tr '[:upper:]' '[:lower:]' \
-        | sed 's/[^a-z0-9]/-/g' \
-        | sed 's/^-*//' \
-        | sed 's/-*$//')
+              git commit \
+                -m "Add encrypted SGM Store signing keystore"
 
-      if [ -z "$RELEASE_NAME" ]; then
+              git push \
+                origin \
+                HEAD:${GITHUB_REF_NAME}
 
-        echo "ERROR: Invalid release tag."
+            fi
 
-        exit 1
+            # ----------------------------------
+            # RESTORE FOR CURRENT BUILD
+            # ----------------------------------
 
-      fi
+            gpg \
+              --batch \
+              --yes \
+              --pinentry-mode loopback \
+              --passphrase "$MASTER_PASSWORD" \
+              --decrypt \
+              --output "$KEYSTORE" \
+              "$ENCRYPTED_KEYSTORE"
 
-      RELEASE_TAG="app-${RELEASE_NAME}"
+            echo "Permanent keystore ready."
 
-      echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          fi
 
-      echo "Release tag: $RELEASE_TAG"
 
+      # ==========================================
+      # VERIFY KEYSTORE
+      # ==========================================
 
-  # ==========================================
-  # DOWNLOAD BUNDLETOOL
-  # ==========================================
+      - name: Verify signing keystore
+        shell: bash
+        env:
+          MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
+        run: |
+          set -e
 
-  - name: Download bundletool
-    shell: bash
-    run: |
+          if [ ! -f "signing/sgmstore.jks" ]; then
+            echo "ERROR: signing keystore is unavailable."
+            exit 1
+          fi
 
-      set -e
+          keytool \
+            -list \
+            -keystore "signing/sgmstore.jks" \
+            -storepass "$MASTER_PASSWORD" \
+            -alias sgmstore
 
-      BUNDLETOOL_VERSION="1.18.3"
+          echo "Signing keystore verified."
 
-      curl -fL \
-        -o bundletool.jar \
-        "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
 
-      test -f bundletool.jar
+      # ==========================================
+      # BUILD SIGNED UNIVERSAL APK
+      # ==========================================
 
-      ls -lh bundletool.jar
+      - name: Build signed universal APK
+        shell: bash
+        env:
+          MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
+        run: |
+          set -e
 
+          rm -f app.apks
 
-  # ==========================================
-  # RESTORE OR CREATE PERMANENT KEYSTORE
-  # ==========================================
+          java -Xmx4g \
+            -jar bundletool.jar \
+            build-apks \
+            --bundle=incoming/app-release.aab \
+            --output=app.apks \
+            --mode=universal \
+            --ks=signing/sgmstore.jks \
+            --ks-key-alias=sgmstore \
+            --ks-pass="pass:${MASTER_PASSWORD}" \
+            --key-pass="pass:${MASTER_PASSWORD}" \
+            --overwrite
 
-  - name: Restore or create permanent signing keystore
-    shell: bash
-    env:
-      MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
-    run: |
+          if [ ! -f "app.apks" ]; then
+            echo "ERROR: app.apks was not created."
+            exit 1
+          fi
 
-      set -e
+          echo "Signed APK bundle created:"
+          ls -lh app.apks
 
-      mkdir -p signing
 
-      ENCRYPTED_KEYSTORE="signing/sgmstore.jks.gpg"
-      KEYSTORE="signing/sgmstore.jks"
+      # ==========================================
+      # EXTRACT UNIVERSAL APK
+      # ==========================================
 
-      # --------------------------------------
-      # EXISTING KEYSTORE
-      # --------------------------------------
+      - name: Extract universal APK
+        shell: bash
+        run: |
+          set -e
 
-      if [ -f "$ENCRYPTED_KEYSTORE" ]; then
+          rm -rf universal
+          mkdir -p universal
 
-        echo "Permanent encrypted keystore found."
+          unzip \
+            -o \
+            app.apks \
+            universal.apk \
+            -d universal
 
-        gpg \
-          --batch \
-          --yes \
-          --pinentry-mode loopback \
-          --passphrase "$MASTER_PASSWORD" \
-          --decrypt \
-          --output "$KEYSTORE" \
-          "$ENCRYPTED_KEYSTORE"
+          if [ ! -f "universal/universal.apk" ]; then
+            echo "ERROR: universal.apk not found."
+            exit 1
+          fi
 
-        echo "Permanent keystore restored."
+          echo "Universal APK extracted."
 
-      else
 
-        # ----------------------------------
-        # CREATE NEW KEYSTORE
-        # ----------------------------------
+      # ==========================================
+      # RENAME APK
+      # ==========================================
 
-        echo "No permanent keystore found."
+      - name: Rename APK
+        shell: bash
+        run: |
+          set -e
 
-        echo "Creating permanent SGM Store signing key..."
+          mv \
+            universal/universal.apk \
+            "universal/${APK_FILE_NAME}"
 
-        keytool \
-          -genkeypair \
-          -v \
-          -keystore "$KEYSTORE" \
-          -alias sgmstore \
-          -keyalg RSA \
-          -keysize 2048 \
-          -validity 10000 \
-          -storepass "$MASTER_PASSWORD" \
-          -keypass "$MASTER_PASSWORD" \
-          -dname "CN=SGM Store, OU=SGM, O=SGM, L=India, ST=Kerala, C=IN"
+          echo "Final APK:"
+          ls -lh "universal/${APK_FILE_NAME}"
 
-        # ----------------------------------
-        # ENCRYPT KEYSTORE
-        # ----------------------------------
 
-        gpg \
-          --batch \
-          --yes \
-          --pinentry-mode loopback \
-          --passphrase "$MASTER_PASSWORD" \
-          --symmetric \
-          --cipher-algo AES256 \
-          --output "$ENCRYPTED_KEYSTORE" \
-          "$KEYSTORE"
+      # ==========================================
+      # VERIFY APK SIGNATURE
+      # ==========================================
 
-        # ----------------------------------
-        # DELETE PLAINTEXT KEYSTORE
-        # ----------------------------------
+      - name: Verify APK signature
+        shell: bash
+        run: |
+          set -e
 
-        rm -f "$KEYSTORE"
+          keytool \
+            -printcert \
+            -jarfile \
+            "universal/${APK_FILE_NAME}"
 
-        # ----------------------------------
-        # SAVE ENCRYPTED KEYSTORE
-        # ----------------------------------
+          echo "APK signature verified."
 
-        git config \
-          user.name \
-          "github-actions[bot]"
 
-        git config \
-          user.email \
-          "41898282+github-actions[bot]@users.noreply.github.com"
+      # ==========================================
+      # DELETE OLD RELEASE
+      # ==========================================
 
-        git add "$ENCRYPTED_KEYSTORE"
+      - name: Delete old release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
 
-        if git diff --cached --quiet; then
+          echo "Checking old release..."
 
-          echo "No keystore changes to commit."
-
-        else
-
-          git commit \
-            -m "Add encrypted SGM Store signing keystore"
+          gh release delete \
+            "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --yes
 
           git push \
+            --delete \
             origin \
-            HEAD:${GITHUB_REF_NAME}
+            "$RELEASE_TAG"
 
-        fi
+          set -e
 
-        # ----------------------------------
-        # RESTORE FOR CURRENT BUILD
-        # ----------------------------------
+          echo "Old release cleanup completed."
 
-        gpg \
-          --batch \
-          --yes \
-          --pinentry-mode loopback \
-          --passphrase "$MASTER_PASSWORD" \
-          --decrypt \
-          --output "$KEYSTORE" \
-          "$ENCRYPTED_KEYSTORE"
 
-        echo "Permanent keystore ready."
+      # ==========================================
+      # CREATE GITHUB RELEASE
+      # ==========================================
 
-      fi
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
 
+          name: ${{ env.PACKAGE_NAME }}
 
-  # ==========================================
-  # VERIFY KEYSTORE
-  # ==========================================
+          body: |
+            SGM Store Application
 
-  - name: Verify signing keystore
-    shell: bash
-    env:
-      MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
-    run: |
+            Application: ${{ env.APP_NAME }}
 
-      set -e
+            Package: ${{ env.PACKAGE_NAME }}
 
-      if [ ! -f "signing/sgmstore.jks" ]; then
+            Version: ${{ env.VERSION }}
 
-        echo "ERROR: signing keystore is unavailable."
+            APK generated automatically from the uploaded Android App Bundle.
 
-        exit 1
+            Build:
+            SGM Store
+            GitHub Actions
+            bundletool
 
-      fi
+          files: |
+            universal/${{ env.APK_FILE_NAME }}
 
-      keytool \
-        -list \
-        -keystore "signing/sgmstore.jks" \
-        -storepass "$MASTER_PASSWORD" \
-        -alias sgmstore
+          make_latest: false
 
-      echo "Signing keystore verified."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
-  # ==========================================
-  # BUILD SIGNED UNIVERSAL APK
-  # ==========================================
+      # ==========================================
+      # UPDATE APPS.JSON
+      # ==========================================
 
-  - name: Build signed universal APK
-    shell: bash
-    env:
-      MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
-    run: |
+      - name: Update apps.json
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
 
-      set -e
+          echo "=============================================="
+          echo "Updating apps.json..."
+          echo "=============================================="
 
-      rm -f app.apks
+          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${APK_FILE_NAME}"
 
-      java -Xmx4g \
-        -jar bundletool.jar \
-        build-apks \
-        --bundle=incoming/app-release.aab \
-        --output=app.apks \
-        --mode=universal \
-        --ks=signing/sgmstore.jks \
-        --ks-key-alias=sgmstore \
-        --ks-pass="pass:${MASTER_PASSWORD}" \
-        --key-pass="pass:${MASTER_PASSWORD}" \
-        --overwrite
+          export APK_URL
 
-      ls -lh app.apks
+          python3 <<'PY'
+          import json
+          import os
+          import base64
+          import urllib.request
+          import urllib.error
 
+          repository = os.environ["GITHUB_REPOSITORY"]
 
-  # ==========================================
-  # EXTRACT UNIVERSAL APK
-  # ==========================================
+          owner, repo = repository.split("/", 1)
 
-  - name: Extract universal APK
-    shell: bash
-    run: |
+          token = os.environ["GH_TOKEN"]
 
-      set -e
+          package_name = os.environ["PACKAGE_NAME"]
+          app_name = os.environ["APP_NAME"]
+          version = os.environ["VERSION"]
+          description = os.environ["DESCRIPTION"]
+          app_size = os.environ["APP_SIZE"]
+          apk_url = os.environ["APK_URL"]
 
-      mkdir -p universal
-
-      unzip \
-        -o \
-        app.apks \
-        universal.apk \
-        -d universal
-
-      if [ ! -f "universal/universal.apk" ]; then
-
-        echo "ERROR: universal.apk not found."
-
-        exit 1
-
-      fi
-
-
-  # ==========================================
-  # RENAME APK
-  # ==========================================
-
-  - name: Rename APK
-    shell: bash
-    run: |
-
-      set -e
-
-      mv \
-        universal/universal.apk \
-        "universal/${APK_FILE_NAME}"
-
-      ls -lh \
-        "universal/${APK_FILE_NAME}"
-
-
-  # ==========================================
-  # VERIFY APK SIGNATURE
-  # ==========================================
-
-  - name: Verify APK signature
-    shell: bash
-    run: |
-
-      set -e
-
-      keytool \
-        -printcert \
-        -jarfile \
-        "universal/${APK_FILE_NAME}"
-
-      echo "APK signature verified."
-
-
-  # ==========================================
-  # DELETE OLD RELEASE
-  # ==========================================
-
-  - name: Delete old release
-    shell: bash
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    run: |
-
-      set +e
-
-      gh release delete \
-        "$RELEASE_TAG" \
-        --repo "$GITHUB_REPOSITORY" \
-        --yes
-
-      git push \
-        --delete \
-        origin \
-        "$RELEASE_TAG"
-
-      set -e
-
-
-  # ==========================================
-  # CREATE GITHUB RELEASE
-  # ==========================================
-
-  - name: Create GitHub Release
-    uses: softprops/action-gh-release@v2
-
-    with:
-
-      tag_name: ${{ env.RELEASE_TAG }}
-
-      name: ${{ env.PACKAGE_NAME }}
-
-      body: |
-        SGM Store Application
-
-        Application: ${{ env.APP_NAME }}
-
-        Package: ${{ env.PACKAGE_NAME }}
-
-        Version: ${{ env.VERSION }}
-
-        APK generated automatically from the uploaded Android App Bundle.
-
-        Build:
-        SGM Store
-        GitHub Actions
-        bundletool
-
-      files: |
-        universal/${{ env.APK_FILE_NAME }}
-
-      make_latest: false
-
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
-  # ==========================================
-  # UPDATE APPS.JSON
-  # ==========================================
-
-  - name: Update apps.json
-    shell: bash
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    run: |
-
-      set -e
-
-      echo "Updating apps.json..."
-
-      APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${APK_FILE_NAME}"
-
-      export APK_URL
-
-      python3 <<'PY'
-
-      import json
-      import os
-      import base64
-      import urllib.request
-      import urllib.error
-
-      owner = os.environ["GITHUB_REPOSITORY"].split("/")[0]
-      repo = os.environ["GITHUB_REPOSITORY"].split("/")[1]
-
-      token = os.environ["GH_TOKEN"]
-
-      package_name = os.environ["PACKAGE_NAME"]
-      app_name = os.environ["APP_NAME"]
-      version = os.environ["VERSION"]
-      description = os.environ["DESCRIPTION"]
-      app_size = os.environ["APP_SIZE"]
-      apk_url = os.environ["APK_URL"]
-
-      api_url = (
-          "https://api.github.com/repos/"
-          + owner
-          + "/"
-          + repo
-          + "/contents/apps.json"
-      )
-
-      request = urllib.request.Request(
-          api_url,
-          headers={
-              "Authorization": "Bearer " + token,
-              "Accept": "application/vnd.github+json",
-              "X-GitHub-Api-Version": "2022-11-28"
-          }
-      )
-
-      try:
-
-          with urllib.request.urlopen(request) as response:
-
-              data = json.loads(
-                  response.read().decode("utf-8")
-              )
-
-          sha = data["sha"]
-
-          content_encoded = data.get("content", "")
-
-          content_encoded = (
-              content_encoded
-              .replace("\n", "")
-              .replace("\r", "")
+          api_url = (
+              "https://api.github.com/repos/"
+              + owner
+              + "/"
+              + repo
+              + "/contents/apps.json"
           )
 
-          if content_encoded:
+          # ==========================================
+          # GET EXISTING apps.json
+          # ==========================================
 
-              apps = json.loads(
-                  base64.b64decode(
-                      content_encoded
-                  ).decode("utf-8")
+          get_request = urllib.request.Request(
+              api_url,
+              headers={
+                  "Authorization": "Bearer " + token,
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28"
+              }
+          )
+
+          try:
+
+              with urllib.request.urlopen(get_request) as response:
+                  data = json.loads(
+                      response.read().decode("utf-8")
+                  )
+
+              sha = data.get("sha")
+
+              content_encoded = data.get("content", "")
+
+              content_encoded = (
+                  content_encoded
+                  .replace("\n", "")
+                  .replace("\r", "")
               )
 
-          else:
+              if content_encoded:
 
+                  decoded = base64.b64decode(
+                      content_encoded
+                  ).decode("utf-8")
+
+                  apps = json.loads(decoded)
+
+              else:
+
+                  apps = []
+
+          except urllib.error.HTTPError as error:
+
+              if error.code == 404:
+
+                  print("apps.json does not exist.")
+                  print("Creating new apps.json.")
+
+                  sha = None
+                  apps = []
+
+              else:
+
+                  print("ERROR while reading apps.json.")
+                  raise
+
+
+          # ==========================================
+          # VALIDATE JSON
+          # ==========================================
+
+          if not isinstance(apps, list):
+              print("Existing apps.json is not an array.")
+              print("Starting with empty app list.")
               apps = []
 
-      except urllib.error.HTTPError as error:
 
-          if error.code == 404:
+          # ==========================================
+          # CREATE NEW APP OBJECT
+          # ==========================================
 
-              sha = None
-              apps = []
+          new_app = {
+              "name": app_name,
+              "package": package_name,
+              "version": version,
+              "size": app_size,
+              "description": description,
+              "apk": apk_url
+          }
 
-          else:
+
+          # ==========================================
+          # REPLACE EXISTING PACKAGE
+          # ==========================================
+
+          replaced = False
+
+          for index in range(len(apps)):
+
+              item = apps[index]
+
+              if not isinstance(item, dict):
+                  continue
+
+              if item.get("package") == package_name:
+
+                  print(
+                      "Existing package found."
+                  )
+
+                  print(
+                      "Replacing existing entry:"
+                      + " "
+                      + package_name
+                  )
+
+                  apps[index] = new_app
+
+                  replaced = True
+
+                  break
+
+
+          # ==========================================
+          # ADD NEW PACKAGE
+          # ==========================================
+
+          if not replaced:
+
+              print(
+                  "New package."
+              )
+
+              print(
+                  "Adding:"
+                  + " "
+                  + package_name
+              )
+
+              apps.append(new_app)
+
+
+          # ==========================================
+          # CREATE JSON
+          # ==========================================
+
+          output = json.dumps(
+              apps,
+              ensure_ascii=False,
+              indent=2
+          ) + "\n"
+
+
+          encoded = base64.b64encode(
+              output.encode("utf-8")
+          ).decode("ascii")
+
+
+          # ==========================================
+          # UPDATE PAYLOAD
+          # ==========================================
+
+          payload = {
+              "message":
+                  "Update apps.json - "
+                  + app_name,
+
+              "content":
+                  encoded
+          }
+
+
+          if sha:
+
+              payload["sha"] = sha
+
+
+          body = json.dumps(
+              payload,
+              ensure_ascii=False
+          ).encode("utf-8")
+
+
+          # ==========================================
+          # PUT apps.json
+          # ==========================================
+
+          update_request = urllib.request.Request(
+              api_url,
+              data=body,
+              method="PUT",
+              headers={
+                  "Authorization":
+                      "Bearer " + token,
+
+                  "Accept":
+                      "application/vnd.github+json",
+
+                  "Content-Type":
+                      "application/json",
+
+                  "X-GitHub-Api-Version":
+                      "2022-11-28"
+              }
+          )
+
+
+          try:
+
+              with urllib.request.urlopen(
+                  update_request
+              ) as response:
+
+                  result = json.loads(
+                      response.read().decode("utf-8")
+                  )
+
+              print("")
+              print("==============================================")
+              print("apps.json UPDATED SUCCESSFULLY")
+              print("==============================================")
+              print("App: " + app_name)
+              print("Package: " + package_name)
+              print("Version: " + version)
+              print("Size: " + app_size)
+              print("APK: " + apk_url)
+              print("==============================================")
+
+              if "content" in result:
+                  print("GitHub Contents API update confirmed.")
+
+          except urllib.error.HTTPError as error:
+
+              print("")
+              print("==============================================")
+              print("ERROR: apps.json UPDATE FAILED")
+              print("==============================================")
+              print(
+                  error.read().decode("utf-8")
+              )
+              print("==============================================")
 
               raise
 
-
-      if not isinstance(apps, list):
-
-          apps = []
+          PY
 
 
-      new_app = {
-          "name": app_name,
-          "package": package_name,
-          "version": version,
-          "size": app_size,
-          "description": description,
-          "apk": apk_url
-      }
+      # ==========================================
+      # CLEANUP
+      # ==========================================
+
+      - name: Remove sensitive build files
+        if: always()
+        shell: bash
+        run: |
+          rm -f signing/sgmstore.jks
+          rm -f app.apks
+          rm -f bundletool.jar
+          rm -rf universal
 
 
-      replaced = False
+      # ==========================================
+      # RESULT
+      # ==========================================
 
-
-      for index in range(len(apps)):
-
-          item = apps[index]
-
-          if not isinstance(item, dict):
-
-              continue
-
-          if item.get("package") == package_name:
-
-              apps[index] = new_app
-
-              replaced = True
-
-              break
-
-
-      if not replaced:
-
-          apps.append(new_app)
-
-
-      output = json.dumps(
-          apps,
-          ensure_ascii=False,
-          indent=2
-      ) + "\n"
-
-
-      encoded = base64.b64encode(
-          output.encode("utf-8")
-      ).decode("ascii")
-
-
-      payload = {
-          "message":
-              "Update apps.json: "
-              + app_name,
-
-          "content":
-              encoded
-      }
-
-
-      if sha:
-
-          payload["sha"] = sha
-
-
-      body = json.dumps(
-          payload
-      ).encode("utf-8")
-
-
-      update_request = urllib.request.Request(
-          api_url,
-          data=body,
-          method="PUT",
-          headers={
-              "Authorization":
-                  "Bearer " + token,
-
-              "Accept":
-                  "application/vnd.github+json",
-
-              "Content-Type":
-                  "application/json",
-
-              "X-GitHub-Api-Version":
-                  "2022-11-28"
-          }
-      )
-
-
-      with urllib.request.urlopen(
-          update_request
-      ) as response:
-
-          response.read()
-
-
-      print("")
-      print("==============================================")
-      print("apps.json UPDATED")
-      print("==============================================")
-      print("App: " + app_name)
-      print("Package: " + package_name)
-      print("Version: " + version)
-      print("APK: " + apk_url)
-      print("==============================================")
-
-
-      PY
-
-
-  # ==========================================
-  # CLEANUP
-  # ==========================================
-
-  - name: Remove sensitive build files
-    if: always()
-    shell: bash
-    run: |
-
-      rm -f signing/sgmstore.jks
-      rm -f app.apks
-      rm -f bundletool.jar
-
-
-  # ==========================================
-  # RESULT
-  # ==========================================
-
-  - name: Show result
-    shell: bash
-    run: |
-
-      echo ""
-      echo "=============================================="
-      echo "SGM STORE BUILD SUCCESS"
-      echo "=============================================="
-      echo "Application: $APP_NAME"
-      echo "Package: $PACKAGE_NAME"
-      echo "Version: $VERSION"
-      echo "APK: $APK_FILE_NAME"
-      echo "Release tag: $RELEASE_TAG"
-      echo ""
-      echo "APK URL:"
-      echo "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${APK_FILE_NAME}"
-      echo ""
-      echo "apps.json updated successfully."
-      echo "=============================================="
+      - name: Show result
+        shell: bash
+        run: |
+          echo ""
+          echo "=============================================="
+          echo "SGM STORE BUILD SUCCESS"
+          echo "=============================================="
+          echo "Application: $APP_NAME"
+          echo "Package: $PACKAGE_NAME"
+          echo "Version: $VERSION"
+          echo "APK: $APK_FILE_NAME"
+          echo "Release tag: $RELEASE_TAG"
+          echo ""
+          echo "APK URL:"
+          echo "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${APK_FILE_NAME}"
+          echo ""
+          echo "apps.json updated successfully."
+          echo "=============================================="

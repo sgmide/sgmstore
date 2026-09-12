@@ -2,1268 +2,1163 @@ name: SGM Store - Publish AAB
 
 on:
 
-  repository_dispatch:
-    types:
-      - aab_uploaded
+repository_dispatch:
+types:
+- aab_uploaded
 
-  workflow_dispatch:
-    inputs:
+workflow_dispatch:
+inputs:
 
-      app_name:
-        description: "App name"
-        required: true
-        type: string
+  app_name:
+    description: "App name"
+    required: true
+    type: string
 
-      package_name:
-        description: "Package name"
-        required: true
-        type: string
+  package_name:
+    description: "Package name"
+    required: true
+    type: string
 
-      version:
-        description: "App version"
-        required: true
-        type: string
+  version:
+    description: "App version"
+    required: true
+    type: string
 
-      description:
-        description: "App description"
-        required: false
-        default: ""
-        type: string
+  description:
+    description: "App description"
+    required: false
+    default: ""
+    type: string
 
-      category:
-        description: "App category"
-        required: false
-        default: "Application"
-        type: string
+  category:
+    description: "App category"
+    required: false
+    default: "Application"
+    type: string
 
-      privacy_policy:
-        description: "Privacy policy URL"
-        required: false
-        default: ""
-        type: string
+  privacy_policy:
+    description: "Privacy policy URL"
+    required: false
+    default: ""
+    type: string
 
-      ads:
-        description: "Contains ads"
-        required: false
-        default: "No"
-        type: string
+  ads:
+    description: "Contains ads"
+    required: false
+    default: "No"
+    type: string
 
-      target_audience:
-        description: "Target audience"
-        required: false
-        default: "Everyone"
-        type: string
+  target_audience:
+    description: "Target audience"
+    required: false
+    default: "Everyone"
+    type: string
 
-      content_rating:
-        description: "Content rating"
-        required: false
-        default: "Everyone"
-        type: string
+  content_rating:
+    description: "Content rating"
+    required: false
+    default: "Everyone"
+    type: string
 
-      login_required:
-        description: "Login required"
-        required: false
-        default: "No"
-        type: string
+  login_required:
+    description: "Login required"
+    required: false
+    default: "No"
+    type: string
 
-      whats_new:
-        description: "What's new"
-        required: false
-        default: ""
-        type: string
+  whats_new:
+    description: "What's new"
+    required: false
+    default: ""
+    type: string
 
-      contact_email:
-        description: "Developer contact email"
-        required: false
-        default: ""
-        type: string
-
+  contact_email:
+    description: "Developer contact email"
+    required: false
+    default: ""
+    type: string
 
 permissions:
-  contents: write
-
+contents: write
 
 jobs:
 
-  publish:
-
-    runs-on: ubuntu-latest
-
-    steps:
-
-      # ==========================================================
-      # CHECKOUT
-      # ==========================================================
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-
-      # ==========================================================
-      # JAVA 17
-      # ==========================================================
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-
-      # ==========================================================
-      # ANDROID SDK
-      # ==========================================================
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-
-      # ==========================================================
-      # READ APP INFORMATION
-      # ==========================================================
-
-      - name: Read app information
-        shell: bash
-        env:
-          EVENT_APP_NAME: ${{ github.event.client_payload.app_name }}
-          EVENT_PACKAGE_NAME: ${{ github.event.client_payload.package_name }}
-          EVENT_VERSION: ${{ github.event.client_payload.version }}
-          EVENT_DESCRIPTION: ${{ github.event.client_payload.description }}
-
-          EVENT_CATEGORY: ${{ github.event.client_payload.category }}
-          EVENT_PRIVACY_POLICY: ${{ github.event.client_payload.privacy_policy }}
-          EVENT_ADS: ${{ github.event.client_payload.ads }}
-          EVENT_TARGET_AUDIENCE: ${{ github.event.client_payload.target_audience }}
-          EVENT_CONTENT_RATING: ${{ github.event.client_payload.content_rating }}
-          EVENT_LOGIN_REQUIRED: ${{ github.event.client_payload.login_required }}
-          EVENT_WHATS_NEW: ${{ github.event.client_payload.whats_new }}
-          EVENT_CONTACT_EMAIL: ${{ github.event.client_payload.contact_email }}
-
-          EVENT_ICON_SELECTED: ${{ github.event.client_payload.icon_selected }}
-          EVENT_SCREENSHOTS_COUNT: ${{ github.event.client_payload.screenshots_count }}
-          EVENT_FEATURE_GRAPHIC_SELECTED: ${{ github.event.client_payload.feature_graphic_selected }}
-
-          INPUT_APP_NAME: ${{ inputs.app_name }}
-          INPUT_PACKAGE_NAME: ${{ inputs.package_name }}
-          INPUT_VERSION: ${{ inputs.version }}
-          INPUT_DESCRIPTION: ${{ inputs.description }}
-
-          INPUT_CATEGORY: ${{ inputs.category }}
-          INPUT_PRIVACY_POLICY: ${{ inputs.privacy_policy }}
-          INPUT_ADS: ${{ inputs.ads }}
-          INPUT_TARGET_AUDIENCE: ${{ inputs.target_audience }}
-          INPUT_CONTENT_RATING: ${{ inputs.content_rating }}
-          INPUT_LOGIN_REQUIRED: ${{ inputs.login_required }}
-          INPUT_WHATS_NEW: ${{ inputs.whats_new }}
-          INPUT_CONTACT_EMAIL: ${{ inputs.contact_email }}
+publish:
+
+runs-on: ubuntu-latest
+
+steps:
+
+  # ==========================================================
+  # CHECKOUT
+  # ==========================================================
+
+  - name: Checkout repository
+    uses: actions/checkout@v4
+
+
+  # ==========================================================
+  # JAVA 17
+  # ==========================================================
+
+  - name: Setup Java 17
+    uses: actions/setup-java@v4
+    with:
+      distribution: temurin
+      java-version: "17"
+
+
+  # ==========================================================
+  # ANDROID SDK
+  # ==========================================================
+
+  - name: Setup Android SDK
+    uses: android-actions/setup-android@v3
+
+
+  # ==========================================================
+  # READ APP INFORMATION
+  # ==========================================================
+
+  - name: Read app information
+    shell: bash
+    env:
+      EVENT_APP_NAME: ${{ github.event.client_payload.app_name }}
+      EVENT_PACKAGE_NAME: ${{ github.event.client_payload.package_name }}
+      EVENT_VERSION: ${{ github.event.client_payload.version }}
+      EVENT_DESCRIPTION: ${{ github.event.client_payload.description }}
+
+      EVENT_CATEGORY: ${{ github.event.client_payload.category }}
+      EVENT_PRIVACY_POLICY: ${{ github.event.client_payload.privacy_policy }}
+      EVENT_ADS: ${{ github.event.client_payload.ads }}
+      EVENT_TARGET_AUDIENCE: ${{ github.event.client_payload.target_audience }}
+      EVENT_CONTENT_RATING: ${{ github.event.client_payload.content_rating }}
+      EVENT_LOGIN_REQUIRED: ${{ github.event.client_payload.login_required }}
+      EVENT_WHATS_NEW: ${{ github.event.client_payload.whats_new }}
+      EVENT_CONTACT_EMAIL: ${{ github.event.client_payload.contact_email }}
+
+      EVENT_ICON_SELECTED: ${{ github.event.client_payload.icon_selected }}
+      EVENT_SCREENSHOTS_COUNT: ${{ github.event.client_payload.screenshots_count }}
+      EVENT_FEATURE_GRAPHIC_SELECTED: ${{ github.event.client_payload.feature_graphic_selected }}
+
+      INPUT_APP_NAME: ${{ inputs.app_name }}
+      INPUT_PACKAGE_NAME: ${{ inputs.package_name }}
+      INPUT_VERSION: ${{ inputs.version }}
+      INPUT_DESCRIPTION: ${{ inputs.description }}
+
+      INPUT_CATEGORY: ${{ inputs.category }}
+      INPUT_PRIVACY_POLICY: ${{ inputs.privacy_policy }}
+      INPUT_ADS: ${{ inputs.ads }}
+      INPUT_TARGET_AUDIENCE: ${{ inputs.target_audience }}
+      INPUT_CONTENT_RATING: ${{ inputs.content_rating }}
+      INPUT_LOGIN_REQUIRED: ${{ inputs.login_required }}
+      INPUT_WHATS_NEW: ${{ inputs.whats_new }}
+      INPUT_CONTACT_EMAIL: ${{ inputs.contact_email }}
 
-        run: |
-
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+    run: |
+
+      if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
 
-            APP_NAME="$EVENT_APP_NAME"
-            PACKAGE_NAME="$EVENT_PACKAGE_NAME"
-            VERSION="$EVENT_VERSION"
-            DESCRIPTION="$EVENT_DESCRIPTION"
+        APP_NAME="$EVENT_APP_NAME"
+        PACKAGE_NAME="$EVENT_PACKAGE_NAME"
+        VERSION="$EVENT_VERSION"
+        DESCRIPTION="$EVENT_DESCRIPTION"
 
-            CATEGORY="$EVENT_CATEGORY"
-            PRIVACY_POLICY="$EVENT_PRIVACY_POLICY"
-            ADS="$EVENT_ADS"
-            TARGET_AUDIENCE="$EVENT_TARGET_AUDIENCE"
-            CONTENT_RATING="$EVENT_CONTENT_RATING"
-            LOGIN_REQUIRED="$EVENT_LOGIN_REQUIRED"
-            WHATS_NEW="$EVENT_WHATS_NEW"
-            CONTACT_EMAIL="$EVENT_CONTACT_EMAIL"
+        CATEGORY="$EVENT_CATEGORY"
+        PRIVACY_POLICY="$EVENT_PRIVACY_POLICY"
+        ADS="$EVENT_ADS"
+        TARGET_AUDIENCE="$EVENT_TARGET_AUDIENCE"
+        CONTENT_RATING="$EVENT_CONTENT_RATING"
+        LOGIN_REQUIRED="$EVENT_LOGIN_REQUIRED"
+        WHATS_NEW="$EVENT_WHATS_NEW"
+        CONTACT_EMAIL="$EVENT_CONTACT_EMAIL"
 
-            ICON_SELECTED="$EVENT_ICON_SELECTED"
-            SCREENSHOTS_COUNT="$EVENT_SCREENSHOTS_COUNT"
-            FEATURE_GRAPHIC_SELECTED="$EVENT_FEATURE_GRAPHIC_SELECTED"
+        ICON_SELECTED="$EVENT_ICON_SELECTED"
+        SCREENSHOTS_COUNT="$EVENT_SCREENSHOTS_COUNT"
+        FEATURE_GRAPHIC_SELECTED="$EVENT_FEATURE_GRAPHIC_SELECTED"
 
-          else
+      else
 
-            APP_NAME="$INPUT_APP_NAME"
-            PACKAGE_NAME="$INPUT_PACKAGE_NAME"
-            VERSION="$INPUT_VERSION"
-            DESCRIPTION="$INPUT_DESCRIPTION"
+        APP_NAME="$INPUT_APP_NAME"
+        PACKAGE_NAME="$INPUT_PACKAGE_NAME"
+        VERSION="$INPUT_VERSION"
+        DESCRIPTION="$INPUT_DESCRIPTION"
 
-            CATEGORY="$INPUT_CATEGORY"
-            PRIVACY_POLICY="$INPUT_PRIVACY_POLICY"
-            ADS="$INPUT_ADS"
-            TARGET_AUDIENCE="$INPUT_TARGET_AUDIENCE"
-            CONTENT_RATING="$INPUT_CONTENT_RATING"
-            LOGIN_REQUIRED="$INPUT_LOGIN_REQUIRED"
-            WHATS_NEW="$INPUT_WHATS_NEW"
-            CONTACT_EMAIL="$INPUT_CONTACT_EMAIL"
+        CATEGORY="$INPUT_CATEGORY"
+        PRIVACY_POLICY="$INPUT_PRIVACY_POLICY"
+        ADS="$INPUT_ADS"
+        TARGET_AUDIENCE="$INPUT_TARGET_AUDIENCE"
+        CONTENT_RATING="$INPUT_CONTENT_RATING"
+        LOGIN_REQUIRED="$INPUT_LOGIN_REQUIRED"
+        WHATS_NEW="$INPUT_WHATS_NEW"
+        CONTACT_EMAIL="$INPUT_CONTACT_EMAIL"
 
-            ICON_SELECTED="false"
-            SCREENSHOTS_COUNT="0"
-            FEATURE_GRAPHIC_SELECTED="false"
+        ICON_SELECTED="false"
+        SCREENSHOTS_COUNT="0"
+        FEATURE_GRAPHIC_SELECTED="false"
 
-          fi
+      fi
 
 
-          # ------------------------------------------------------
-          # Defaults
-          # ------------------------------------------------------
+      # ------------------------------------------------------
+      # Defaults
+      # ------------------------------------------------------
 
-          if [ -z "$DESCRIPTION" ]; then
-            DESCRIPTION="Application published on SGM Store"
-          fi
+      if [ -z "$DESCRIPTION" ]; then
+        DESCRIPTION="Application published on SGM Store"
+      fi
 
-          if [ -z "$CATEGORY" ]; then
-            CATEGORY="Application"
-          fi
+      if [ -z "$CATEGORY" ]; then
+        CATEGORY="Application"
+      fi
 
-          if [ -z "$ADS" ]; then
-            ADS="No"
-          fi
+      if [ -z "$ADS" ]; then
+        ADS="No"
+      fi
 
-          if [ -z "$TARGET_AUDIENCE" ]; then
-            TARGET_AUDIENCE="Everyone"
-          fi
+      if [ -z "$TARGET_AUDIENCE" ]; then
+        TARGET_AUDIENCE="Everyone"
+      fi
 
-          if [ -z "$CONTENT_RATING" ]; then
-            CONTENT_RATING="Everyone"
-          fi
+      if [ -z "$CONTENT_RATING" ]; then
+        CONTENT_RATING="Everyone"
+      fi
 
-          if [ -z "$LOGIN_REQUIRED" ]; then
-            LOGIN_REQUIRED="No"
-          fi
+      if [ -z "$LOGIN_REQUIRED" ]; then
+        LOGIN_REQUIRED="No"
+      fi
 
-          if [ -z "$WHATS_NEW" ]; then
-            WHATS_NEW=""
-          fi
+      if [ -z "$WHATS_NEW" ]; then
+        WHATS_NEW=""
+      fi
 
-          if [ -z "$PRIVACY_POLICY" ]; then
-            PRIVACY_POLICY=""
-          fi
+      if [ -z "$PRIVACY_POLICY" ]; then
+        PRIVACY_POLICY=""
+      fi
 
-          if [ -z "$CONTACT_EMAIL" ]; then
-            CONTACT_EMAIL=""
-          fi
+      if [ -z "$CONTACT_EMAIL" ]; then
+        CONTACT_EMAIL=""
+      fi
 
-          if [ -z "$ICON_SELECTED" ]; then
-            ICON_SELECTED="false"
-          fi
+      if [ -z "$ICON_SELECTED" ]; then
+        ICON_SELECTED="false"
+      fi
 
-          if [ -z "$SCREENSHOTS_COUNT" ]; then
-            SCREENSHOTS_COUNT="0"
-          fi
+      if [ -z "$SCREENSHOTS_COUNT" ]; then
+        SCREENSHOTS_COUNT="0"
+      fi
 
-          if [ -z "$FEATURE_GRAPHIC_SELECTED" ]; then
-            FEATURE_GRAPHIC_SELECTED="false"
-          fi
+      if [ -z "$FEATURE_GRAPHIC_SELECTED" ]; then
+        FEATURE_GRAPHIC_SELECTED="false"
+      fi
 
 
-          # ------------------------------------------------------
-          # Validate
-          # ------------------------------------------------------
+      # ------------------------------------------------------
+      # Validate
+      # ------------------------------------------------------
 
-          if [ -z "$APP_NAME" ]; then
-            echo "ERROR: App name is empty"
-            exit 1
-          fi
+      if [ -z "$APP_NAME" ]; then
+        echo "ERROR: App name is empty"
+        exit 1
+      fi
 
 
-          if [ -z "$PACKAGE_NAME" ]; then
-            echo "ERROR: Package name is empty"
-            exit 1
-          fi
+      if [ -z "$PACKAGE_NAME" ]; then
+        echo "ERROR: Package name is empty"
+        exit 1
+      fi
 
 
-          if [ -z "$VERSION" ]; then
-            echo "ERROR: Version is empty"
-            exit 1
-          fi
+      if [ -z "$VERSION" ]; then
+        echo "ERROR: Version is empty"
+        exit 1
+      fi
 
 
-          # ------------------------------------------------------
-          # Validate Android package name
-          # ------------------------------------------------------
+      # ------------------------------------------------------
+      # Validate Android package name
+      # ------------------------------------------------------
 
-          if ! echo "$PACKAGE_NAME" | grep -Eq '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$'; then
+      if ! echo "$PACKAGE_NAME" | grep -Eq '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$'; then
 
-            echo "ERROR: Invalid Android package name:"
-            echo "$PACKAGE_NAME"
+        echo "ERROR: Invalid Android package name:"
+        echo "$PACKAGE_NAME"
 
-            exit 1
+        exit 1
 
-          fi
+      fi
 
 
-          # ------------------------------------------------------
-          # Convert package to filename
-          #
-          # com.sgmsoft.android
-          #
-          # ->
-          #
-          # com-sgmsoft-android
-          # ------------------------------------------------------
-
-          PACKAGE_BASE=$(echo "$PACKAGE_NAME" | tr '.' '-')
-
-
-          # ------------------------------------------------------
-          # Release tag
-          # ------------------------------------------------------
-
-          RELEASE_TAG="app-${PACKAGE_BASE}"
-
-
-          # ------------------------------------------------------
-          # APKS filename
-          # ------------------------------------------------------
-
-          APKS_FILE_NAME="${PACKAGE_BASE}.apks"
-
-
-          # ------------------------------------------------------
-          # APK filename
-          # ------------------------------------------------------
-
-          APK_FILE_NAME="${PACKAGE_BASE}.apk"
-
-
-          # ------------------------------------------------------
-          # Universal APKS filename
-          # ------------------------------------------------------
-
-          UNIVERSAL_APKS_FILE_NAME="${PACKAGE_BASE}-universal.apks"
-
-
-          # ------------------------------------------------------
-          # Export variables
-          # ------------------------------------------------------
-
-          {
-            echo "APP_NAME=$APP_NAME"
-            echo "PACKAGE_NAME=$PACKAGE_NAME"
-            echo "VERSION=$VERSION"
-
-            echo "DESCRIPTION<<EOF"
-            echo "$DESCRIPTION"
-            echo "EOF"
-
-            echo "CATEGORY=$CATEGORY"
-
-            echo "PRIVACY_POLICY=$PRIVACY_POLICY"
-
-            echo "ADS=$ADS"
-
-            echo "TARGET_AUDIENCE=$TARGET_AUDIENCE"
-
-            echo "CONTENT_RATING=$CONTENT_RATING"
-
-            echo "LOGIN_REQUIRED=$LOGIN_REQUIRED"
-
-            echo "WHATS_NEW<<EOF"
-            echo "$WHATS_NEW"
-            echo "EOF"
-
-            echo "CONTACT_EMAIL=$CONTACT_EMAIL"
-
-            echo "ICON_SELECTED=$ICON_SELECTED"
-
-            echo "SCREENSHOTS_COUNT=$SCREENSHOTS_COUNT"
-
-            echo "FEATURE_GRAPHIC_SELECTED=$FEATURE_GRAPHIC_SELECTED"
-
-            echo "PACKAGE_BASE=$PACKAGE_BASE"
-            echo "RELEASE_TAG=$RELEASE_TAG"
-            echo "APKS_FILE_NAME=$APKS_FILE_NAME"
-            echo "APK_FILE_NAME=$APK_FILE_NAME"
-            echo "UNIVERSAL_APKS_FILE_NAME=$UNIVERSAL_APKS_FILE_NAME"
-
-          } >> "$GITHUB_ENV"
-
-
-          echo ""
-          echo "======================================"
-          echo "App Name            : $APP_NAME"
-          echo "Package             : $PACKAGE_NAME"
-          echo "Version             : $VERSION"
-          echo "Category            : $CATEGORY"
-          echo "Privacy Policy      : $PRIVACY_POLICY"
-          echo "Ads                 : $ADS"
-          echo "Target Audience     : $TARGET_AUDIENCE"
-          echo "Content Rating      : $CONTENT_RATING"
-          echo "Login Required      : $LOGIN_REQUIRED"
-          echo "Contact Email       : $CONTACT_EMAIL"
-          echo "Icon Selected       : $ICON_SELECTED"
-          echo "Screenshots         : $SCREENSHOTS_COUNT"
-          echo "Feature Graphic     : $FEATURE_GRAPHIC_SELECTED"
-          echo "Release Tag         : $RELEASE_TAG"
-          echo "APKS                : $APKS_FILE_NAME"
-          echo "APK                 : $APK_FILE_NAME"
-          echo "======================================"
-
-
-      # ==========================================================
-      # CHECK AAB
-      # ==========================================================
-
-      - name: Check uploaded AAB
-        shell: bash
-        run: |
-
-          if [ ! -f "incoming/app-release.aab" ]; then
-
-            echo "ERROR: incoming/app-release.aab not found"
-
-            echo ""
-            echo "Repository files:"
-            find . -maxdepth 3 -type f | sort
-
-            exit 1
-
-          fi
-
-
-          echo "AAB found:"
-          ls -lh incoming/app-release.aab
-
-
-      # ==========================================================
-      # DOWNLOAD BUNDLETOOL
-      # ==========================================================
-
-      - name: Download bundletool
-        shell: bash
-        run: |
-
-          curl -fL \
-            -o bundletool.jar \
-            https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
-
-
-          if [ ! -s "bundletool.jar" ]; then
-
-            echo "ERROR: bundletool download failed"
-            exit 1
-
-          fi
-
-
-          echo "bundletool version:"
-
-          java -jar bundletool.jar version
-
-
-      # ==========================================================
-      # PREPARE SIGNING KEY
-      # ==========================================================
-
-      - name: Prepare signing key
-        shell: bash
-        env:
-          MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
-
-        run: |
-
-          if [ -z "$MASTER_PASSWORD" ]; then
-
-            echo "ERROR: SGM_MASTER_PASSWORD secret is missing"
-
-            exit 1
-
-          fi
-
-
-          mkdir -p signing
-
-
-          KEY_FILE="signing/${PACKAGE_BASE}.jks"
-
-          ENCRYPTED_KEY="signing/${PACKAGE_BASE}.jks.gpg"
-
-
-          # ------------------------------------------------------
-          # Existing encrypted key
-          # ------------------------------------------------------
-
-          if [ -f "$ENCRYPTED_KEY" ]; then
-
-            echo "Existing encrypted signing key found"
-
-
-            gpg \
-              --batch \
-              --yes \
-              --pinentry-mode loopback \
-              --passphrase "$MASTER_PASSWORD" \
-              --decrypt \
-              --output "$KEY_FILE" \
-              "$ENCRYPTED_KEY"
-
-
-            if [ ! -f "$KEY_FILE" ]; then
-
-              echo "ERROR: Could not decrypt signing key"
-
-              exit 1
-
-            fi
-
-
-          # ------------------------------------------------------
-          # Create new signing key
-          # ------------------------------------------------------
-
-          else
-
-            echo "No encrypted signing key found"
-
-            echo "Creating new signing key"
-
-
-            keytool \
-              -genkeypair \
-              -v \
-              -keystore "$KEY_FILE" \
-              -storetype JKS \
-              -alias sgmstore \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass "$MASTER_PASSWORD" \
-              -keypass "$MASTER_PASSWORD" \
-              -dname "CN=SGM Store, OU=SGM, O=SGM, L=India, ST=Kerala, C=IN"
-
-
-            echo "Encrypting signing key"
-
-
-            gpg \
-              --batch \
-              --yes \
-              --pinentry-mode loopback \
-              --passphrase "$MASTER_PASSWORD" \
-              --symmetric \
-              --cipher-algo AES256 \
-              --output "$ENCRYPTED_KEY" \
-              "$KEY_FILE"
-
-
-            if [ ! -f "$ENCRYPTED_KEY" ]; then
-
-              echo "ERROR: Signing key encryption failed"
-
-              exit 1
-
-            fi
-
-
-            echo "Encrypted signing key created"
-
-          fi
-
-
-          chmod 600 "$KEY_FILE"
-
-
-      # ==========================================================
-      # BUILD DEVICE APK SET
+      # ------------------------------------------------------
+      # Convert package to filename
       #
-      # This creates:
+      # com.sgmsoft.android
       #
-      # com-sgmsoft-example.apks
+      # ->
       #
-      # containing split APKs.
-      # ==========================================================
+      # com-sgmsoft-android
+      # ------------------------------------------------------
 
-      - name: Build APK Set
-        shell: bash
-        env:
-          MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
+      PACKAGE_BASE=$(echo "$PACKAGE_NAME" | tr '.' '-')
 
-        run: |
 
-          mkdir -p output
+      # ------------------------------------------------------
+      # Release tag
+      # ------------------------------------------------------
 
+      RELEASE_TAG="app-${PACKAGE_BASE}"
 
-          KEY_FILE="signing/${PACKAGE_BASE}.jks"
 
+      # ------------------------------------------------------
+      # APKS filename
+      # ------------------------------------------------------
 
-          echo "Building APK Set..."
+      APKS_FILE_NAME="${PACKAGE_BASE}.apks"
 
 
-          java -Xmx4g \
-            -jar bundletool.jar \
-            build-apks \
-            --bundle="incoming/app-release.aab" \
-            --output="output/${APKS_FILE_NAME}" \
-            --ks="$KEY_FILE" \
-            --ks-key-alias=sgmstore \
-            --ks-pass="pass:${MASTER_PASSWORD}" \
-            --key-pass="pass:${MASTER_PASSWORD}" \
-            --overwrite
+      # ------------------------------------------------------
+      # APK filename
+      # ------------------------------------------------------
 
+      APK_FILE_NAME="${PACKAGE_BASE}.apk"
 
-          if [ ! -f "output/${APKS_FILE_NAME}" ]; then
 
-            echo "ERROR: APK Set was not created"
+      # ------------------------------------------------------
+      # Universal APKS filename
+      # ------------------------------------------------------
 
-            exit 1
+      UNIVERSAL_APKS_FILE_NAME="${PACKAGE_BASE}-universal.apks"
 
-          fi
 
+      # ------------------------------------------------------
+      # Export variables
+      # ------------------------------------------------------
 
-          echo ""
-          echo "APK Set created:"
-          ls -lh "output/${APKS_FILE_NAME}"
+      {
+        echo "APP_NAME=$APP_NAME"
+        echo "PACKAGE_NAME=$PACKAGE_NAME"
+        echo "VERSION=$VERSION"
 
+        echo "DESCRIPTION<<EOF"
+        echo "$DESCRIPTION"
+        echo "EOF"
 
-      # ==========================================================
-      # BUILD UNIVERSAL APK
-      #
-      # This creates a universal APK that can be installed
-      # directly on supported devices.
-      # ==========================================================
+        echo "CATEGORY=$CATEGORY"
 
-      - name: Build Universal APK
-        shell: bash
-        env:
-          MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
+        echo "PRIVACY_POLICY=$PRIVACY_POLICY"
 
-        run: |
+        echo "ADS=$ADS"
 
-          KEY_FILE="signing/${PACKAGE_BASE}.jks"
+        echo "TARGET_AUDIENCE=$TARGET_AUDIENCE"
 
+        echo "CONTENT_RATING=$CONTENT_RATING"
 
-          echo "Building Universal APK..."
+        echo "LOGIN_REQUIRED=$LOGIN_REQUIRED"
 
+        echo "WHATS_NEW<<EOF"
+        echo "$WHATS_NEW"
+        echo "EOF"
 
-          java -Xmx4g \
-            -jar bundletool.jar \
-            build-apks \
-            --bundle="incoming/app-release.aab" \
-            --output="output/${UNIVERSAL_APKS_FILE_NAME}" \
-            --mode=universal \
-            --ks="$KEY_FILE" \
-            --ks-key-alias=sgmstore \
-            --ks-pass="pass:${MASTER_PASSWORD}" \
-            --key-pass="pass:${MASTER_PASSWORD}" \
-            --overwrite
+        echo "CONTACT_EMAIL=$CONTACT_EMAIL"
 
+        echo "ICON_SELECTED=$ICON_SELECTED"
 
-          if [ ! -f "output/${UNIVERSAL_APKS_FILE_NAME}" ]; then
+        echo "SCREENSHOTS_COUNT=$SCREENSHOTS_COUNT"
 
-            echo "ERROR: Universal APK set was not created"
+        echo "FEATURE_GRAPHIC_SELECTED=$FEATURE_GRAPHIC_SELECTED"
 
-            exit 1
+        echo "PACKAGE_BASE=$PACKAGE_BASE"
+        echo "RELEASE_TAG=$RELEASE_TAG"
+        echo "APKS_FILE_NAME=$APKS_FILE_NAME"
+        echo "APK_FILE_NAME=$APK_FILE_NAME"
+        echo "UNIVERSAL_APKS_FILE_NAME=$UNIVERSAL_APKS_FILE_NAME"
 
-          fi
+      } >> "$GITHUB_ENV"
 
 
-          echo ""
-          echo "Universal APK set created:"
-          ls -lh "output/${UNIVERSAL_APKS_FILE_NAME}"
+      echo ""
+      echo "======================================"
+      echo "App Name            : $APP_NAME"
+      echo "Package             : $PACKAGE_NAME"
+      echo "Version             : $VERSION"
+      echo "Category            : $CATEGORY"
+      echo "Privacy Policy      : $PRIVACY_POLICY"
+      echo "Ads                 : $ADS"
+      echo "Target Audience     : $TARGET_AUDIENCE"
+      echo "Content Rating      : $CONTENT_RATING"
+      echo "Login Required      : $LOGIN_REQUIRED"
+      echo "Contact Email       : $CONTACT_EMAIL"
+      echo "Icon Selected       : $ICON_SELECTED"
+      echo "Screenshots         : $SCREENSHOTS_COUNT"
+      echo "Feature Graphic     : $FEATURE_GRAPHIC_SELECTED"
+      echo "Release Tag         : $RELEASE_TAG"
+      echo "APKS                : $APKS_FILE_NAME"
+      echo "APK                 : $APK_FILE_NAME"
+      echo "======================================"
 
 
-      # ==========================================================
-      # EXTRACT UNIVERSAL APK
-      # ==========================================================
+  # ==========================================================
+  # CHECK AAB
+  # ==========================================================
 
-      - name: Extract Universal APK
-        shell: bash
-        run: |
+  - name: Check uploaded AAB
+    shell: bash
+    run: |
 
-          echo "Extracting universal.apk..."
+      if [ ! -f "incoming/app-release.aab" ]; then
 
+        echo "ERROR: incoming/app-release.aab not found"
 
-          unzip -l \
-            "output/${UNIVERSAL_APKS_FILE_NAME}"
+        echo ""
+        echo "Repository files:"
+        find . -maxdepth 3 -type f | sort
 
+        exit 1
 
-          unzip -j \
-            "output/${UNIVERSAL_APKS_FILE_NAME}" \
-            "universal.apk" \
-            -d output
+      fi
 
 
-          if [ ! -f "output/universal.apk" ]; then
+      echo "AAB found:"
+      ls -lh incoming/app-release.aab
 
-            echo "ERROR: universal.apk not found"
 
-            exit 1
+  # ==========================================================
+  # DOWNLOAD BUNDLETOOL
+  # ==========================================================
 
-          fi
+  - name: Download bundletool
+    shell: bash
+    run: |
 
+      curl -fL \
+        -o bundletool.jar \
+        https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
 
-          mv \
-            "output/universal.apk" \
-            "output/${APK_FILE_NAME}"
 
+      if [ ! -s "bundletool.jar" ]; then
 
-          echo ""
-          echo "Universal APK:"
-          ls -lh "output/${APK_FILE_NAME}"
+        echo "ERROR: bundletool download failed"
+        exit 1
 
+      fi
 
-      # ==========================================================
-      # VERIFY APKS
-      # ==========================================================
 
-      - name: Verify APK Set
-        shell: bash
-        run: |
+      echo "bundletool version:"
 
-          echo "Testing APK Set archive..."
+      java -jar bundletool.jar version
 
 
-          unzip -t \
-            "output/${APKS_FILE_NAME}"
+  # ==========================================================
+  # PREPARE SIGNING KEY
+  # ==========================================================
 
+  - name: Prepare signing key
+    shell: bash
+    env:
+      MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
 
-          echo ""
-          echo "APK Set verification successful"
+    run: |
 
+      if [ -z "$MASTER_PASSWORD" ]; then
 
-      # ==========================================================
-      # VERIFY UNIVERSAL APK
-      # ==========================================================
+        echo "ERROR: SGM_MASTER_PASSWORD secret is missing"
 
-      - name: Verify Universal APK
-        shell: bash
-        run: |
+        exit 1
 
-          echo "Checking universal APK..."
+      fi
 
 
-          if [ ! -s "output/${APK_FILE_NAME}" ]; then
+      mkdir -p signing
 
-            echo "ERROR: Universal APK is empty"
 
-            exit 1
+      KEY_FILE="signing/${PACKAGE_BASE}.jks"
 
-          fi
+      ENCRYPTED_KEY="signing/${PACKAGE_BASE}.jks.gpg"
 
 
-          file \
-            "output/${APK_FILE_NAME}"
+      # ------------------------------------------------------
+      # Existing encrypted key
+      # ------------------------------------------------------
 
+      if [ -f "$ENCRYPTED_KEY" ]; then
 
-          echo ""
-          echo "Universal APK verification successful"
+        echo "Existing encrypted signing key found"
 
 
-      # ==========================================================
-      # PUBLISH GITHUB RELEASE
-      #
-      # Release:
-      #
-      # app-com-sgmsoft-nuhameharin
-      #
-      # Assets:
-      #
-      # com-sgmsoft-nuhameharin.apks
-      # com-sgmsoft-nuhameharin.apk
-      # ==========================================================
+        gpg \
+          --batch \
+          --yes \
+          --pinentry-mode loopback \
+          --passphrase "$MASTER_PASSWORD" \
+          --decrypt \
+          --output "$KEY_FILE" \
+          "$ENCRYPTED_KEY"
 
-      - name: Publish GitHub Release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-        run: |
+        if [ ! -f "$KEY_FILE" ]; then
 
-          echo "Release tag:"
-          echo "$RELEASE_TAG"
+          echo "ERROR: Could not decrypt signing key"
 
+          exit 1
 
-          # ------------------------------------------------------
-          # Existing release
-          # ------------------------------------------------------
+        fi
 
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
 
-            echo "Release already exists"
-            echo "Updating existing release"
+      # ------------------------------------------------------
+      # Create new signing key
+      # ------------------------------------------------------
 
+      else
 
-            gh release upload \
-              "$RELEASE_TAG" \
-              "output/${APKS_FILE_NAME}" \
-              "output/${APK_FILE_NAME}" \
-              --clobber
+        echo "No encrypted signing key found"
 
+        echo "Creating new signing key"
 
-            gh release edit \
-              "$RELEASE_TAG" \
-              --title "$APP_NAME $VERSION" \
-              --notes "SGM Store package: ${PACKAGE_NAME}"
 
+        keytool \
+          -genkeypair \
+          -v \
+          -keystore "$KEY_FILE" \
+          -storetype JKS \
+          -alias sgmstore \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000 \
+          -storepass "$MASTER_PASSWORD" \
+          -keypass "$MASTER_PASSWORD" \
+          -dname "CN=SGM Store, OU=SGM, O=SGM, L=India, ST=Kerala, C=IN"
 
-          # ------------------------------------------------------
-          # New release
-          # ------------------------------------------------------
 
-          else
+        echo "Encrypting signing key"
 
-            echo "Creating new release"
 
+        gpg \
+          --batch \
+          --yes \
+          --pinentry-mode loopback \
+          --passphrase "$MASTER_PASSWORD" \
+          --symmetric \
+          --cipher-algo AES256 \
+          --output "$ENCRYPTED_KEY" \
+          "$KEY_FILE"
 
-            gh release create \
-              "$RELEASE_TAG" \
-              "output/${APKS_FILE_NAME}" \
-              "output/${APK_FILE_NAME}" \
-              --title "$APP_NAME $VERSION" \
-              --notes "SGM Store package: ${PACKAGE_NAME}"
 
-          fi
+        if [ ! -f "$ENCRYPTED_KEY" ]; then
 
+          echo "ERROR: Signing key encryption failed"
 
-          echo ""
-          echo "GitHub Release published successfully"
+          exit 1
 
+        fi
 
-      # ==========================================================
-      # UPDATE apps.json
-      #
-      # Existing:
-      #
-      # name
-      # package
-      # version
-      # description
-      # download
-      # apks
-      #
-      # Added:
-      #
-      # category
-      # privacyPolicy
-      # ads
-      # targetAudience
-      # contentRating
-      # loginRequired
-      # whatsNew
-      # contactEmail
-      # icon
-      # screenshots
-      # featureGraphic
-      # ==========================================================
 
-      - name: Update apps.json
-        shell: bash
-        run: |
+        echo "Encrypted signing key created"
 
-          python3 <<'PY'
+      fi
 
-          import json
-          import os
 
+      chmod 600 "$KEY_FILE"
 
-          APPS_FILE = "apps.json"
 
+  # ==========================================================
+  # BUILD DEVICE APK SET
+  # ==========================================================
 
-          app_name = os.environ["APP_NAME"]
-          package_name = os.environ["PACKAGE_NAME"]
-          version = os.environ["VERSION"]
-          description = os.environ["DESCRIPTION"]
+  - name: Build APK Set
+    shell: bash
+    env:
+      MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
 
-          category = os.environ.get(
-              "CATEGORY",
-              "Application"
-          )
+    run: |
 
-          privacy_policy = os.environ.get(
-              "PRIVACY_POLICY",
-              ""
-          )
+      mkdir -p output
 
-          ads = os.environ.get(
-              "ADS",
-              "No"
-          )
 
-          target_audience = os.environ.get(
-              "TARGET_AUDIENCE",
-              "Everyone"
-          )
+      KEY_FILE="signing/${PACKAGE_BASE}.jks"
 
-          content_rating = os.environ.get(
-              "CONTENT_RATING",
-              "Everyone"
-          )
 
-          login_required = os.environ.get(
-              "LOGIN_REQUIRED",
-              "No"
-          )
+      echo "Building APK Set..."
 
-          whats_new = os.environ.get(
-              "WHATS_NEW",
-              ""
-          )
 
-          contact_email = os.environ.get(
-              "CONTACT_EMAIL",
-              ""
-          )
+      java -Xmx4g \
+        -jar bundletool.jar \
+        build-apks \
+        --bundle="incoming/app-release.aab" \
+        --output="output/${APKS_FILE_NAME}" \
+        --ks="$KEY_FILE" \
+        --ks-key-alias=sgmstore \
+        --ks-pass="pass:${MASTER_PASSWORD}" \
+        --key-pass="pass:${MASTER_PASSWORD}" \
+        --overwrite
 
-          icon_selected = os.environ.get(
-              "ICON_SELECTED",
-              "false"
-          )
 
-          screenshots_count = os.environ.get(
-              "SCREENSHOTS_COUNT",
-              "0"
-          )
+      if [ ! -f "output/${APKS_FILE_NAME}" ]; then
 
-          feature_graphic_selected = os.environ.get(
-              "FEATURE_GRAPHIC_SELECTED",
-              "false"
-          )
+        echo "ERROR: APK Set was not created"
 
-          release_tag = os.environ["RELEASE_TAG"]
+        exit 1
 
-          apk_file_name = os.environ["APK_FILE_NAME"]
+      fi
 
-          apks_file_name = os.environ["APKS_FILE_NAME"]
 
-          repository = os.environ["GITHUB_REPOSITORY"]
+      echo ""
+      echo "APK Set created:"
+      ls -lh "output/${APKS_FILE_NAME}"
 
 
-          # ------------------------------------------------------
-          # APK URL
-          # ------------------------------------------------------
+  # ==========================================================
+  # BUILD UNIVERSAL APK
+  # ==========================================================
 
-          apk_url = (
-              "https://github.com/"
-              + repository
-              + "/releases/download/"
-              + release_tag
-              + "/"
-              + apk_file_name
-          )
+  - name: Build Universal APK
+    shell: bash
+    env:
+      MASTER_PASSWORD: ${{ secrets.SGM_MASTER_PASSWORD }}
 
+    run: |
 
-          # ------------------------------------------------------
-          # APKS URL
-          # ------------------------------------------------------
+      KEY_FILE="signing/${PACKAGE_BASE}.jks"
 
-          apks_url = (
-              "https://github.com/"
-              + repository
-              + "/releases/download/"
-              + release_tag
-              + "/"
-              + apks_file_name
-          )
 
+      echo "Building Universal APK..."
 
-          print("")
-          print("======================================")
-          print("APK URL:")
-          print(apk_url)
-          print("")
-          print("APKS URL:")
-          print(apks_url)
-          print("======================================")
 
+      java -Xmx4g \
+        -jar bundletool.jar \
+        build-apks \
+        --bundle="incoming/app-release.aab" \
+        --output="output/${UNIVERSAL_APKS_FILE_NAME}" \
+        --mode=universal \
+        --ks="$KEY_FILE" \
+        --ks-key-alias=sgmstore \
+        --ks-pass="pass:${MASTER_PASSWORD}" \
+        --key-pass="pass:${MASTER_PASSWORD}" \
+        --overwrite
 
-          # ------------------------------------------------------
-          # Read existing apps.json
-          # ------------------------------------------------------
 
-          if os.path.exists(APPS_FILE):
+      if [ ! -f "output/${UNIVERSAL_APKS_FILE_NAME}" ]; then
 
-              try:
+        echo "ERROR: Universal APK set was not created"
 
-                  with open(
-                      APPS_FILE,
-                      "r",
-                      encoding="utf-8"
-                  ) as f:
+        exit 1
 
-                      apps = json.load(f)
+      fi
 
-              except Exception:
 
-                  print("WARNING: Invalid apps.json")
-                  print("Creating a new catalog")
+      echo ""
+      echo "Universal APK set created:"
+      ls -lh "output/${UNIVERSAL_APKS_FILE_NAME}"
 
-                  apps = []
 
-          else:
+  # ==========================================================
+  # EXTRACT UNIVERSAL APK
+  # ==========================================================
 
-              print("apps.json does not exist")
-              print("Creating new catalog")
+  - name: Extract Universal APK
+    shell: bash
+    run: |
 
-              apps = []
+      echo "Extracting universal.apk..."
 
 
-          if not isinstance(apps, list):
+      unzip -l \
+        "output/${UNIVERSAL_APKS_FILE_NAME}"
 
-              apps = []
 
+      unzip -j \
+        "output/${UNIVERSAL_APKS_FILE_NAME}" \
+        "universal.apk" \
+        -d output
 
-          # ------------------------------------------------------
-          # Existing app data
-          #
-          # Keep existing icon/screenshots/feature graphic
-          # URLs if this workflow does not upload new images yet.
-          # ------------------------------------------------------
 
-          old_app = None
+      if [ ! -f "output/universal.apk" ]; then
 
-          for item in apps:
+        echo "ERROR: universal.apk not found"
 
-              if isinstance(item, dict):
+        exit 1
 
-                  if item.get("package") == package_name:
+      fi
 
-                      old_app = item
 
-                      break
+      mv \
+        "output/universal.apk" \
+        "output/${APK_FILE_NAME}"
 
 
-          old_icon = ""
+      echo ""
+      echo "Universal APK:"
+      ls -lh "output/${APK_FILE_NAME}"
 
-          old_screenshots = []
 
-          old_feature_graphic = ""
+  # ==========================================================
+  # VERIFY APKS
+  # ==========================================================
 
+  - name: Verify APK Set
+    shell: bash
+    run: |
 
-          if isinstance(old_app, dict):
+      echo "Testing APK Set archive..."
 
-              old_icon = old_app.get(
-                  "icon",
-                  ""
-              )
 
-              old_screenshots = old_app.get(
-                  "screenshots",
-                  []
-              )
+      unzip -t \
+        "output/${APKS_FILE_NAME}"
 
-              old_feature_graphic = old_app.get(
-                  "featureGraphic",
-                  ""
-              )
 
+      echo ""
+      echo "APK Set verification successful"
 
-          # ------------------------------------------------------
-          # Convert screenshot count
-          # ------------------------------------------------------
+
+  # ==========================================================
+  # VERIFY UNIVERSAL APK
+  # ==========================================================
+
+  - name: Verify Universal APK
+    shell: bash
+    run: |
+
+      echo "Checking universal APK..."
+
+
+      if [ ! -s "output/${APK_FILE_NAME}" ]; then
+
+        echo "ERROR: Universal APK is empty"
+
+        exit 1
+
+      fi
+
+
+      file \
+        "output/${APK_FILE_NAME}"
+
+
+      echo ""
+      echo "Universal APK verification successful"
+
+
+  # ==========================================================
+  # PUBLISH GITHUB RELEASE
+  # ==========================================================
+
+  - name: Publish GitHub Release
+    shell: bash
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    run: |
+
+      echo "Release tag:"
+      echo "$RELEASE_TAG"
+
+
+      if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+
+        echo "Release already exists"
+        echo "Updating existing release"
+
+
+        gh release upload \
+          "$RELEASE_TAG" \
+          "output/${APKS_FILE_NAME}" \
+          "output/${APK_FILE_NAME}" \
+          --clobber
+
+
+        gh release edit \
+          "$RELEASE_TAG" \
+          --title "$APP_NAME $VERSION" \
+          --notes "SGM Store package: ${PACKAGE_NAME}"
+
+
+      else
+
+        echo "Creating new release"
+
+
+        gh release create \
+          "$RELEASE_TAG" \
+          "output/${APKS_FILE_NAME}" \
+          "output/${APK_FILE_NAME}" \
+          --title "$APP_NAME $VERSION" \
+          --notes "SGM Store package: ${PACKAGE_NAME}"
+
+      fi
+
+
+      echo ""
+      echo "GitHub Release published successfully"
+
+
+  # ==========================================================
+  # UPDATE apps.json
+  # ==========================================================
+
+  - name: Update apps.json
+    shell: bash
+    run: |
+
+      python3 <<'PY'
+
+      import json
+      import os
+
+
+      APPS_FILE = "apps.json"
+
+
+      app_name = os.environ["APP_NAME"]
+      package_name = os.environ["PACKAGE_NAME"]
+      version = os.environ["VERSION"]
+      description = os.environ["DESCRIPTION"]
+
+      category = os.environ.get(
+          "CATEGORY",
+          "Application"
+      )
+
+      privacy_policy = os.environ.get(
+          "PRIVACY_POLICY",
+          ""
+      )
+
+      ads = os.environ.get(
+          "ADS",
+          "No"
+      )
+
+      target_audience = os.environ.get(
+          "TARGET_AUDIENCE",
+          "Everyone"
+      )
+
+      content_rating = os.environ.get(
+          "CONTENT_RATING",
+          "Everyone"
+      )
+
+      login_required = os.environ.get(
+          "LOGIN_REQUIRED",
+          "No"
+      )
+
+      whats_new = os.environ.get(
+          "WHATS_NEW",
+          ""
+      )
+
+      contact_email = os.environ.get(
+          "CONTACT_EMAIL",
+          ""
+      )
+
+      icon_selected = os.environ.get(
+          "ICON_SELECTED",
+          "false"
+      )
+
+      screenshots_count = os.environ.get(
+          "SCREENSHOTS_COUNT",
+          "0"
+      )
+
+      feature_graphic_selected = os.environ.get(
+          "FEATURE_GRAPHIC_SELECTED",
+          "false"
+      )
+
+      release_tag = os.environ["RELEASE_TAG"]
+
+      apk_file_name = os.environ["APK_FILE_NAME"]
+
+      apks_file_name = os.environ["APKS_FILE_NAME"]
+
+      repository = os.environ["GITHUB_REPOSITORY"]
+
+
+      apk_url = (
+          "https://github.com/"
+          + repository
+          + "/releases/download/"
+          + release_tag
+          + "/"
+          + apk_file_name
+      )
+
+
+      apks_url = (
+          "https://github.com/"
+          + repository
+          + "/releases/download/"
+          + release_tag
+          + "/"
+          + apks_file_name
+      )
+
+
+      print("")
+      print("======================================")
+      print("APK URL:")
+      print(apk_url)
+      print("")
+      print("APKS URL:")
+      print(apks_url)
+      print("======================================")
+
+
+      if os.path.exists(APPS_FILE):
 
           try:
 
-              screenshot_count_int = int(
-                  screenshots_count
-              )
+              with open(
+                  APPS_FILE,
+                  "r",
+                  encoding="utf-8"
+              ) as f:
+
+                  apps = json.load(f)
 
           except Exception:
 
-              screenshot_count_int = 0
+              print("WARNING: Invalid apps.json")
+              apps = []
+
+      else:
+
+          print("apps.json does not exist")
+          apps = []
 
 
-          # ------------------------------------------------------
-          # New app
-          # ------------------------------------------------------
+      if not isinstance(apps, list):
 
-          new_app = {
-
-              "name": app_name,
-
-              "package": package_name,
-
-              "version": version,
-
-              "description": description,
-
-              "download": apk_url,
-
-              "apks": apks_url,
-
-              "category": category,
-
-              "privacyPolicy": privacy_policy,
-
-              "ads": ads,
-
-              "targetAudience": target_audience,
-
-              "contentRating": content_rating,
-
-              "loginRequired": login_required,
-
-              "whatsNew": whats_new,
-
-              "contactEmail": contact_email,
-
-              "icon": old_icon,
-
-              "screenshots": old_screenshots,
-
-              "featureGraphic": old_feature_graphic
-
-          }
+          apps = []
 
 
-          # ------------------------------------------------------
-          # Image selection status
-          #
-          # Actual image upload is added separately.
-          # We don't replace an existing image URL with blank.
-          # ------------------------------------------------------
+      old_app = None
 
-          if icon_selected.lower() == "true":
+      for item in apps:
 
-              print(
-                  "New icon selected in Android app."
-              )
+          if isinstance(item, dict):
 
-              print(
-                  "Actual image upload is not enabled yet."
-              )
+              if item.get("package") == package_name:
 
-
-          if screenshot_count_int > 0:
-
-              print(
-                  "New screenshots selected:",
-                  screenshot_count_int
-              )
-
-              print(
-                  "Actual image upload is not enabled yet."
-              )
-
-
-          if feature_graphic_selected.lower() == "true":
-
-              print(
-                  "New feature graphic selected."
-              )
-
-              print(
-                  "Actual image upload is not enabled yet."
-              )
-
-
-          # ------------------------------------------------------
-          # Find existing package
-          # ------------------------------------------------------
-
-          updated = False
-
-
-          for index in range(len(apps)):
-
-              if apps[index].get(
-                  "package"
-              ) == package_name:
-
-                  apps[index] = new_app
-
-                  updated = True
-
-                  print(
-                      "Updated existing app:",
-                      package_name
-                  )
-
+                  old_app = item
                   break
 
 
-          # ------------------------------------------------------
-          # Add new package
-          # ------------------------------------------------------
+      old_icon = ""
+      old_screenshots = []
+      old_feature_graphic = ""
 
-          if not updated:
 
-              apps.append(new_app)
+      if isinstance(old_app, dict):
+
+          old_icon = old_app.get(
+              "icon",
+              ""
+          )
+
+          old_screenshots = old_app.get(
+              "screenshots",
+              []
+          )
+
+          old_feature_graphic = old_app.get(
+              "featureGraphic",
+              ""
+          )
+
+
+      try:
+
+          screenshot_count_int = int(
+              screenshots_count
+          )
+
+      except Exception:
+
+          screenshot_count_int = 0
+
+
+      new_app = {
+
+          "name": app_name,
+
+          "package": package_name,
+
+          "version": version,
+
+          "description": description,
+
+          "download": apk_url,
+
+          "apks": apks_url,
+
+          "category": category,
+
+          "privacyPolicy": privacy_policy,
+
+          "ads": ads,
+
+          "targetAudience": target_audience,
+
+          "contentRating": content_rating,
+
+          "loginRequired": login_required,
+
+          "whatsNew": whats_new,
+
+          "contactEmail": contact_email,
+
+          "icon": old_icon,
+
+          "screenshots": old_screenshots,
+
+          "featureGraphic": old_feature_graphic
+
+      }
+
+
+      if icon_selected.lower() == "true":
+
+          print(
+              "New icon selected in Android app."
+          )
+
+          print(
+              "Actual image upload is not enabled yet."
+          )
+
+
+      if screenshot_count_int > 0:
+
+          print(
+              "New screenshots selected:",
+              screenshot_count_int
+          )
+
+          print(
+              "Actual image upload is not enabled yet."
+          )
+
+
+      if feature_graphic_selected.lower() == "true":
+
+          print(
+              "New feature graphic selected."
+          )
+
+          print(
+              "Actual image upload is not enabled yet."
+          )
+
+
+      updated = False
+
+
+      for index in range(len(apps)):
+
+          if apps[index].get(
+              "package"
+          ) == package_name:
+
+              apps[index] = new_app
+
+              updated = True
 
               print(
-                  "Added new app:",
+                  "Updated existing app:",
                   package_name
               )
 
-
-          # ------------------------------------------------------
-          # Write apps.json
-          # ------------------------------------------------------
-
-          with open(
-              APPS_FILE,
-              "w",
-              encoding="utf-8"
-          ) as f:
-
-              json.dump(
-                  apps,
-                  f,
-                  ensure_ascii=False,
-                  indent=2
-              )
-
-              f.write("\n")
+              break
 
 
-          print("")
-          print("Updated apps.json:")
-          print("")
+      if not updated:
+
+          apps.append(new_app)
+
+          print(
+              "Added new app:",
+              package_name
+          )
 
 
-          PY
+      with open(
+          APPS_FILE,
+          "w",
+          encoding="utf-8"
+      ) as f:
+
+          json.dump(
+              apps,
+              f,
+              ensure_ascii=False,
+              indent=2
+          )
+
+          f.write("\n")
 
 
-          cat apps.json
+      print("")
+      print("Updated apps.json:")
+      print("")
+
+      PY
 
 
-      # ==========================================================
-      # COMMIT apps.json + ENCRYPTED SIGNING KEY
-      # ==========================================================
-
-      - name: Commit catalog and signing key
-        shell: bash
-        run: |
-
-          git config user.name "SGM Store Bot"
-
-          git config user.email \
-            "41898282+github-actions[bot]@users.noreply.github.com"
+      cat apps.json
 
 
-          git add apps.json
+  # ==========================================================
+  # COMMIT apps.json + ENCRYPTED SIGNING KEY
+  # ==========================================================
+
+  - name: Commit catalog and signing key
+    shell: bash
+    run: |
+
+      git config user.name "SGM Store Bot"
+
+      git config user.email \
+        "41898282+github-actions[bot]@users.noreply.github.com"
 
 
-          git add \
-            "signing/${PACKAGE_BASE}.jks.gpg"
+      git add apps.json
 
 
-          if git diff --cached --quiet; then
-
-            echo "No repository changes"
-
-          else
-
-            git commit \
-              -m "Publish ${PACKAGE_NAME} ${VERSION}"
-
-            git push
-
-          fi
+      git add \
+        "signing/${PACKAGE_BASE}.jks.gpg"
 
 
-      # ==========================================================
-      # CLEANUP
-      # ==========================================================
+      if git diff --cached --quiet; then
 
-      - name: Cleanup
-        if: always()
-        shell: bash
-        run: |
+        echo "No repository changes"
 
-          rm -f bundletool.jar
+      else
 
-          rm -f \
-            "signing/${PACKAGE_BASE}.jks"
+        git commit \
+          -m "Publish ${PACKAGE_NAME} ${VERSION}"
 
-          rm -rf output
+        git push
 
-          echo "Cleanup complete"
+      fi
+
+
+  # ==========================================================
+  # CLEANUP
+  # ==========================================================
+
+  - name: Cleanup
+    if: always()
+    shell: bash
+    run: |
+
+      rm -f bundletool.jar
+
+      rm -f \
+        "signing/${PACKAGE_BASE}.jks"
+
+      rm -rf output
+
+      echo "Cleanup complete"

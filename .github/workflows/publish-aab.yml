@@ -30,6 +30,54 @@ on:
         default: ""
         type: string
 
+      category:
+        description: "App category"
+        required: false
+        default: "Application"
+        type: string
+
+      privacy_policy:
+        description: "Privacy policy URL"
+        required: false
+        default: ""
+        type: string
+
+      ads:
+        description: "Contains ads"
+        required: false
+        default: "No"
+        type: string
+
+      target_audience:
+        description: "Target audience"
+        required: false
+        default: "Everyone"
+        type: string
+
+      content_rating:
+        description: "Content rating"
+        required: false
+        default: "Everyone"
+        type: string
+
+      login_required:
+        description: "Login required"
+        required: false
+        default: "No"
+        type: string
+
+      whats_new:
+        description: "What's new"
+        required: false
+        default: ""
+        type: string
+
+      contact_email:
+        description: "Developer contact email"
+        required: false
+        default: ""
+        type: string
+
 
 permissions:
   contents: write
@@ -82,10 +130,32 @@ jobs:
           EVENT_VERSION: ${{ github.event.client_payload.version }}
           EVENT_DESCRIPTION: ${{ github.event.client_payload.description }}
 
+          EVENT_CATEGORY: ${{ github.event.client_payload.category }}
+          EVENT_PRIVACY_POLICY: ${{ github.event.client_payload.privacy_policy }}
+          EVENT_ADS: ${{ github.event.client_payload.ads }}
+          EVENT_TARGET_AUDIENCE: ${{ github.event.client_payload.target_audience }}
+          EVENT_CONTENT_RATING: ${{ github.event.client_payload.content_rating }}
+          EVENT_LOGIN_REQUIRED: ${{ github.event.client_payload.login_required }}
+          EVENT_WHATS_NEW: ${{ github.event.client_payload.whats_new }}
+          EVENT_CONTACT_EMAIL: ${{ github.event.client_payload.contact_email }}
+
+          EVENT_ICON_SELECTED: ${{ github.event.client_payload.icon_selected }}
+          EVENT_SCREENSHOTS_COUNT: ${{ github.event.client_payload.screenshots_count }}
+          EVENT_FEATURE_GRAPHIC_SELECTED: ${{ github.event.client_payload.feature_graphic_selected }}
+
           INPUT_APP_NAME: ${{ inputs.app_name }}
           INPUT_PACKAGE_NAME: ${{ inputs.package_name }}
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_DESCRIPTION: ${{ inputs.description }}
+
+          INPUT_CATEGORY: ${{ inputs.category }}
+          INPUT_PRIVACY_POLICY: ${{ inputs.privacy_policy }}
+          INPUT_ADS: ${{ inputs.ads }}
+          INPUT_TARGET_AUDIENCE: ${{ inputs.target_audience }}
+          INPUT_CONTENT_RATING: ${{ inputs.content_rating }}
+          INPUT_LOGIN_REQUIRED: ${{ inputs.login_required }}
+          INPUT_WHATS_NEW: ${{ inputs.whats_new }}
+          INPUT_CONTACT_EMAIL: ${{ inputs.contact_email }}
 
         run: |
 
@@ -96,6 +166,19 @@ jobs:
             VERSION="$EVENT_VERSION"
             DESCRIPTION="$EVENT_DESCRIPTION"
 
+            CATEGORY="$EVENT_CATEGORY"
+            PRIVACY_POLICY="$EVENT_PRIVACY_POLICY"
+            ADS="$EVENT_ADS"
+            TARGET_AUDIENCE="$EVENT_TARGET_AUDIENCE"
+            CONTENT_RATING="$EVENT_CONTENT_RATING"
+            LOGIN_REQUIRED="$EVENT_LOGIN_REQUIRED"
+            WHATS_NEW="$EVENT_WHATS_NEW"
+            CONTACT_EMAIL="$EVENT_CONTACT_EMAIL"
+
+            ICON_SELECTED="$EVENT_ICON_SELECTED"
+            SCREENSHOTS_COUNT="$EVENT_SCREENSHOTS_COUNT"
+            FEATURE_GRAPHIC_SELECTED="$EVENT_FEATURE_GRAPHIC_SELECTED"
+
           else
 
             APP_NAME="$INPUT_APP_NAME"
@@ -103,6 +186,72 @@ jobs:
             VERSION="$INPUT_VERSION"
             DESCRIPTION="$INPUT_DESCRIPTION"
 
+            CATEGORY="$INPUT_CATEGORY"
+            PRIVACY_POLICY="$INPUT_PRIVACY_POLICY"
+            ADS="$INPUT_ADS"
+            TARGET_AUDIENCE="$INPUT_TARGET_AUDIENCE"
+            CONTENT_RATING="$INPUT_CONTENT_RATING"
+            LOGIN_REQUIRED="$INPUT_LOGIN_REQUIRED"
+            WHATS_NEW="$INPUT_WHATS_NEW"
+            CONTACT_EMAIL="$INPUT_CONTACT_EMAIL"
+
+            ICON_SELECTED="false"
+            SCREENSHOTS_COUNT="0"
+            FEATURE_GRAPHIC_SELECTED="false"
+
+          fi
+
+
+          # ------------------------------------------------------
+          # Defaults
+          # ------------------------------------------------------
+
+          if [ -z "$DESCRIPTION" ]; then
+            DESCRIPTION="Application published on SGM Store"
+          fi
+
+          if [ -z "$CATEGORY" ]; then
+            CATEGORY="Application"
+          fi
+
+          if [ -z "$ADS" ]; then
+            ADS="No"
+          fi
+
+          if [ -z "$TARGET_AUDIENCE" ]; then
+            TARGET_AUDIENCE="Everyone"
+          fi
+
+          if [ -z "$CONTENT_RATING" ]; then
+            CONTENT_RATING="Everyone"
+          fi
+
+          if [ -z "$LOGIN_REQUIRED" ]; then
+            LOGIN_REQUIRED="No"
+          fi
+
+          if [ -z "$WHATS_NEW" ]; then
+            WHATS_NEW=""
+          fi
+
+          if [ -z "$PRIVACY_POLICY" ]; then
+            PRIVACY_POLICY=""
+          fi
+
+          if [ -z "$CONTACT_EMAIL" ]; then
+            CONTACT_EMAIL=""
+          fi
+
+          if [ -z "$ICON_SELECTED" ]; then
+            ICON_SELECTED="false"
+          fi
+
+          if [ -z "$SCREENSHOTS_COUNT" ]; then
+            SCREENSHOTS_COUNT="0"
+          fi
+
+          if [ -z "$FEATURE_GRAPHIC_SELECTED" ]; then
+            FEATURE_GRAPHIC_SELECTED="false"
           fi
 
 
@@ -191,25 +340,62 @@ jobs:
             echo "APP_NAME=$APP_NAME"
             echo "PACKAGE_NAME=$PACKAGE_NAME"
             echo "VERSION=$VERSION"
+
             echo "DESCRIPTION<<EOF"
             echo "$DESCRIPTION"
             echo "EOF"
+
+            echo "CATEGORY=$CATEGORY"
+
+            echo "PRIVACY_POLICY=$PRIVACY_POLICY"
+
+            echo "ADS=$ADS"
+
+            echo "TARGET_AUDIENCE=$TARGET_AUDIENCE"
+
+            echo "CONTENT_RATING=$CONTENT_RATING"
+
+            echo "LOGIN_REQUIRED=$LOGIN_REQUIRED"
+
+            echo "WHATS_NEW<<EOF"
+            echo "$WHATS_NEW"
+            echo "EOF"
+
+            echo "CONTACT_EMAIL=$CONTACT_EMAIL"
+
+            echo "ICON_SELECTED=$ICON_SELECTED"
+
+            echo "SCREENSHOTS_COUNT=$SCREENSHOTS_COUNT"
+
+            echo "FEATURE_GRAPHIC_SELECTED=$FEATURE_GRAPHIC_SELECTED"
+
             echo "PACKAGE_BASE=$PACKAGE_BASE"
             echo "RELEASE_TAG=$RELEASE_TAG"
             echo "APKS_FILE_NAME=$APKS_FILE_NAME"
             echo "APK_FILE_NAME=$APK_FILE_NAME"
             echo "UNIVERSAL_APKS_FILE_NAME=$UNIVERSAL_APKS_FILE_NAME"
+
           } >> "$GITHUB_ENV"
 
 
           echo ""
           echo "======================================"
-          echo "App Name       : $APP_NAME"
-          echo "Package        : $PACKAGE_NAME"
-          echo "Version        : $VERSION"
-          echo "Release Tag    : $RELEASE_TAG"
-          echo "APKS           : $APKS_FILE_NAME"
-          echo "APK            : $APK_FILE_NAME"
+          echo "App Name            : $APP_NAME"
+          echo "Package             : $PACKAGE_NAME"
+          echo "Version             : $VERSION"
+          echo "Category            : $CATEGORY"
+          echo "Privacy Policy      : $PRIVACY_POLICY"
+          echo "Ads                 : $ADS"
+          echo "Target Audience     : $TARGET_AUDIENCE"
+          echo "Content Rating      : $CONTENT_RATING"
+          echo "Login Required      : $LOGIN_REQUIRED"
+          echo "Contact Email       : $CONTACT_EMAIL"
+          echo "Icon Selected       : $ICON_SELECTED"
+          echo "Screenshots         : $SCREENSHOTS_COUNT"
+          echo "Feature Graphic     : $FEATURE_GRAPHIC_SELECTED"
+          echo "Release Tag         : $RELEASE_TAG"
+          echo "APKS                : $APKS_FILE_NAME"
+          echo "APK                 : $APK_FILE_NAME"
           echo "======================================"
 
 
@@ -635,16 +821,28 @@ jobs:
       # ==========================================================
       # UPDATE apps.json
       #
-      # Result:
+      # Existing:
       #
-      # {
-      #   "name": "...",
-      #   "package": "...",
-      #   "version": "...",
-      #   "description": "...",
-      #   "download": "...apk",
-      #   "apks": "...apks"
-      # }
+      # name
+      # package
+      # version
+      # description
+      # download
+      # apks
+      #
+      # Added:
+      #
+      # category
+      # privacyPolicy
+      # ads
+      # targetAudience
+      # contentRating
+      # loginRequired
+      # whatsNew
+      # contactEmail
+      # icon
+      # screenshots
+      # featureGraphic
       # ==========================================================
 
       - name: Update apps.json
@@ -665,9 +863,65 @@ jobs:
           version = os.environ["VERSION"]
           description = os.environ["DESCRIPTION"]
 
+          category = os.environ.get(
+              "CATEGORY",
+              "Application"
+          )
+
+          privacy_policy = os.environ.get(
+              "PRIVACY_POLICY",
+              ""
+          )
+
+          ads = os.environ.get(
+              "ADS",
+              "No"
+          )
+
+          target_audience = os.environ.get(
+              "TARGET_AUDIENCE",
+              "Everyone"
+          )
+
+          content_rating = os.environ.get(
+              "CONTENT_RATING",
+              "Everyone"
+          )
+
+          login_required = os.environ.get(
+              "LOGIN_REQUIRED",
+              "No"
+          )
+
+          whats_new = os.environ.get(
+              "WHATS_NEW",
+              ""
+          )
+
+          contact_email = os.environ.get(
+              "CONTACT_EMAIL",
+              ""
+          )
+
+          icon_selected = os.environ.get(
+              "ICON_SELECTED",
+              "false"
+          )
+
+          screenshots_count = os.environ.get(
+              "SCREENSHOTS_COUNT",
+              "0"
+          )
+
+          feature_graphic_selected = os.environ.get(
+              "FEATURE_GRAPHIC_SELECTED",
+              "false"
+          )
+
           release_tag = os.environ["RELEASE_TAG"]
 
           apk_file_name = os.environ["APK_FILE_NAME"]
+
           apks_file_name = os.environ["APKS_FILE_NAME"]
 
           repository = os.environ["GITHUB_REPOSITORY"]
@@ -748,6 +1002,66 @@ jobs:
 
 
           # ------------------------------------------------------
+          # Existing app data
+          #
+          # Keep existing icon/screenshots/feature graphic
+          # URLs if this workflow does not upload new images yet.
+          # ------------------------------------------------------
+
+          old_app = None
+
+          for item in apps:
+
+              if isinstance(item, dict):
+
+                  if item.get("package") == package_name:
+
+                      old_app = item
+
+                      break
+
+
+          old_icon = ""
+
+          old_screenshots = []
+
+          old_feature_graphic = ""
+
+
+          if isinstance(old_app, dict):
+
+              old_icon = old_app.get(
+                  "icon",
+                  ""
+              )
+
+              old_screenshots = old_app.get(
+                  "screenshots",
+                  []
+              )
+
+              old_feature_graphic = old_app.get(
+                  "featureGraphic",
+                  ""
+              )
+
+
+          # ------------------------------------------------------
+          # Convert screenshot count
+          # ------------------------------------------------------
+
+          try:
+
+              screenshot_count_int = int(
+                  screenshots_count
+              )
+
+          except Exception:
+
+              screenshot_count_int = 0
+
+
+          # ------------------------------------------------------
           # New app
           # ------------------------------------------------------
 
@@ -763,9 +1077,72 @@ jobs:
 
               "download": apk_url,
 
-              "apks": apks_url
+              "apks": apks_url,
+
+              "category": category,
+
+              "privacyPolicy": privacy_policy,
+
+              "ads": ads,
+
+              "targetAudience": target_audience,
+
+              "contentRating": content_rating,
+
+              "loginRequired": login_required,
+
+              "whatsNew": whats_new,
+
+              "contactEmail": contact_email,
+
+              "icon": old_icon,
+
+              "screenshots": old_screenshots,
+
+              "featureGraphic": old_feature_graphic
 
           }
+
+
+          # ------------------------------------------------------
+          # Image selection status
+          #
+          # Actual image upload is added separately.
+          # We don't replace an existing image URL with blank.
+          # ------------------------------------------------------
+
+          if icon_selected.lower() == "true":
+
+              print(
+                  "New icon selected in Android app."
+              )
+
+              print(
+                  "Actual image upload is not enabled yet."
+              )
+
+
+          if screenshot_count_int > 0:
+
+              print(
+                  "New screenshots selected:",
+                  screenshot_count_int
+              )
+
+              print(
+                  "Actual image upload is not enabled yet."
+              )
+
+
+          if feature_graphic_selected.lower() == "true":
+
+              print(
+                  "New feature graphic selected."
+              )
+
+              print(
+                  "Actual image upload is not enabled yet."
+              )
 
 
           # ------------------------------------------------------
@@ -777,7 +1154,9 @@ jobs:
 
           for index in range(len(apps)):
 
-              if apps[index].get("package") == package_name:
+              if apps[index].get(
+                  "package"
+              ) == package_name:
 
                   apps[index] = new_app
 

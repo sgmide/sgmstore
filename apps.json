@@ -1,10 +1,11 @@
 [
   {
-    "name": "Android Studio",
+    "name": "Android app",
     "package": "com.sgmsoft.nuhameharin",
     "version": "1.0",
-    "description": "Android Studio",
+    "description": "Android Studio app",
     "download": "https://github.com/sgmide/sgmstore/releases/download/app-com-sgmsoft-nuhameharin/com-sgmsoft-nuhameharin.apk",
-    "apks": "https://github.com/sgmide/sgmstore/releases/download/app-com-sgmsoft-nuhameharin/com-sgmsoft-nuhameharin.apks"
+    "apks": "https://github.com/sgmide/sgmstore/releases/download/app-com-sgmsoft-nuhameharin/com-sgmsoft-nuhameharin.apks",
+    "size": "4.5 MB"
   }
 ]

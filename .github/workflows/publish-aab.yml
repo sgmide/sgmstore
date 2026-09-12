@@ -516,6 +516,51 @@ jobs:
 
 
       # ==========================================================
+      # CALCULATE APK SIZE
+      #
+      # Calculates the final universal APK size.
+      # The result is exported to GITHUB_ENV so that
+      # the Update apps.json step can use it.
+      # ==========================================================
+
+      - name: Calculate APK size
+        shell: bash
+        run: |
+
+          APK_FILE="output/${APK_FILE_NAME}"
+
+
+          if [ ! -s "$APK_FILE" ]; then
+
+            echo "ERROR: APK not found"
+
+            exit 1
+
+          fi
+
+
+          APK_SIZE_BYTES=$(stat -c%s "$APK_FILE")
+
+
+          APK_SIZE_MB=$(python3 -c "
+          size = $APK_SIZE_BYTES
+          print('{:.1f} MB'.format(size / (1024 * 1024)))
+          ")
+
+
+          echo ""
+          echo "======================================"
+          echo "APK Size Bytes : $APK_SIZE_BYTES"
+          echo "APK Size       : $APK_SIZE_MB"
+          echo "======================================"
+
+
+          echo "APK_SIZE_BYTES=$APK_SIZE_BYTES" >> "$GITHUB_ENV"
+
+          echo "APK_SIZE=$APK_SIZE_MB" >> "$GITHUB_ENV"
+
+
+      # ==========================================================
       # VERIFY APKS
       # ==========================================================
 
@@ -643,7 +688,8 @@ jobs:
       #   "version": "...",
       #   "description": "...",
       #   "download": "...apk",
-      #   "apks": "...apks"
+      #   "apks": "...apks",
+      #   "size": "... MB"
       # }
       # ==========================================================
 
@@ -671,6 +717,16 @@ jobs:
           apks_file_name = os.environ["APKS_FILE_NAME"]
 
           repository = os.environ["GITHUB_REPOSITORY"]
+
+
+          # ------------------------------------------------------
+          # APK SIZE
+          # ------------------------------------------------------
+
+          apk_size = os.environ.get(
+              "APK_SIZE",
+              "0 MB"
+          )
 
 
           # ------------------------------------------------------
@@ -708,6 +764,9 @@ jobs:
           print("")
           print("APKS URL:")
           print(apks_url)
+          print("")
+          print("APK SIZE:")
+          print(apk_size)
           print("======================================")
 
 
@@ -763,7 +822,9 @@ jobs:
 
               "download": apk_url,
 
-              "apks": apks_url
+              "apks": apks_url,
+
+              "size": apk_size
 
           }
 

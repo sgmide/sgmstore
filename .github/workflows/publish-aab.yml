@@ -125,6 +125,7 @@ jobs:
       - name: Read app information
         shell: bash
         env:
+
           EVENT_APP_NAME: ${{ github.event.client_payload.app_name }}
           EVENT_PACKAGE_NAME: ${{ github.event.client_payload.package_name }}
           EVENT_VERSION: ${{ github.event.client_payload.version }}
@@ -140,8 +141,13 @@ jobs:
           EVENT_CONTACT_EMAIL: ${{ github.event.client_payload.contact_email }}
 
           EVENT_ICON_SELECTED: ${{ github.event.client_payload.icon_selected }}
+          EVENT_ICON_URL: ${{ github.event.client_payload.icon_url }}
+
           EVENT_SCREENSHOTS_COUNT: ${{ github.event.client_payload.screenshots_count }}
+          EVENT_SCREENSHOTS: ${{ toJson(github.event.client_payload.screenshots) }}
+
           EVENT_FEATURE_GRAPHIC_SELECTED: ${{ github.event.client_payload.feature_graphic_selected }}
+          EVENT_FEATURE_GRAPHIC_URL: ${{ github.event.client_payload.feature_graphic_url }}
 
           INPUT_APP_NAME: ${{ inputs.app_name }}
           INPUT_PACKAGE_NAME: ${{ inputs.package_name }}
@@ -176,8 +182,13 @@ jobs:
             CONTACT_EMAIL="$EVENT_CONTACT_EMAIL"
 
             ICON_SELECTED="$EVENT_ICON_SELECTED"
+            ICON_URL="$EVENT_ICON_URL"
+
             SCREENSHOTS_COUNT="$EVENT_SCREENSHOTS_COUNT"
+            SCREENSHOTS_JSON="$EVENT_SCREENSHOTS"
+
             FEATURE_GRAPHIC_SELECTED="$EVENT_FEATURE_GRAPHIC_SELECTED"
+            FEATURE_GRAPHIC_URL="$EVENT_FEATURE_GRAPHIC_URL"
 
           else
 
@@ -196,8 +207,13 @@ jobs:
             CONTACT_EMAIL="$INPUT_CONTACT_EMAIL"
 
             ICON_SELECTED="false"
+            ICON_URL=""
+
             SCREENSHOTS_COUNT="0"
+            SCREENSHOTS_JSON="[]"
+
             FEATURE_GRAPHIC_SELECTED="false"
+            FEATURE_GRAPHIC_URL=""
 
           fi
 
@@ -246,12 +262,24 @@ jobs:
             ICON_SELECTED="false"
           fi
 
+          if [ -z "$ICON_URL" ]; then
+            ICON_URL=""
+          fi
+
           if [ -z "$SCREENSHOTS_COUNT" ]; then
             SCREENSHOTS_COUNT="0"
           fi
 
+          if [ -z "$SCREENSHOTS_JSON" ]; then
+            SCREENSHOTS_JSON="[]"
+          fi
+
           if [ -z "$FEATURE_GRAPHIC_SELECTED" ]; then
             FEATURE_GRAPHIC_SELECTED="false"
+          fi
+
+          if [ -z "$FEATURE_GRAPHIC_URL" ]; then
+            FEATURE_GRAPHIC_URL=""
           fi
 
 
@@ -264,12 +292,10 @@ jobs:
             exit 1
           fi
 
-
           if [ -z "$PACKAGE_NAME" ]; then
             echo "ERROR: Package name is empty"
             exit 1
           fi
-
 
           if [ -z "$VERSION" ]; then
             echo "ERROR: Version is empty"
@@ -277,57 +303,23 @@ jobs:
           fi
 
 
-          # ------------------------------------------------------
-          # Validate Android package name
-          # ------------------------------------------------------
-
-          if ! echo "$PACKAGE_NAME" | grep -Eq '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$'; then
+          if ! echo "$PACKAGE_NAME" | grep -Eq \
+            '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$'; then
 
             echo "ERROR: Invalid Android package name:"
             echo "$PACKAGE_NAME"
 
             exit 1
-
           fi
 
 
-          # ------------------------------------------------------
-          # Convert package to filename
-          #
-          # com.sgmsoft.android
-          #
-          # ->
-          #
-          # com-sgmsoft-android
-          # ------------------------------------------------------
-
           PACKAGE_BASE=$(echo "$PACKAGE_NAME" | tr '.' '-')
-
-
-          # ------------------------------------------------------
-          # Release tag
-          # ------------------------------------------------------
 
           RELEASE_TAG="app-${PACKAGE_BASE}"
 
-
-          # ------------------------------------------------------
-          # APKS filename
-          # ------------------------------------------------------
-
           APKS_FILE_NAME="${PACKAGE_BASE}.apks"
 
-
-          # ------------------------------------------------------
-          # APK filename
-          # ------------------------------------------------------
-
           APK_FILE_NAME="${PACKAGE_BASE}.apk"
-
-
-          # ------------------------------------------------------
-          # Universal APKS filename
-          # ------------------------------------------------------
 
           UNIVERSAL_APKS_FILE_NAME="${PACKAGE_BASE}-universal.apks"
 
@@ -346,15 +338,10 @@ jobs:
             echo "EOF"
 
             echo "CATEGORY=$CATEGORY"
-
             echo "PRIVACY_POLICY=$PRIVACY_POLICY"
-
             echo "ADS=$ADS"
-
             echo "TARGET_AUDIENCE=$TARGET_AUDIENCE"
-
             echo "CONTENT_RATING=$CONTENT_RATING"
-
             echo "LOGIN_REQUIRED=$LOGIN_REQUIRED"
 
             echo "WHATS_NEW<<EOF"
@@ -364,10 +351,16 @@ jobs:
             echo "CONTACT_EMAIL=$CONTACT_EMAIL"
 
             echo "ICON_SELECTED=$ICON_SELECTED"
+            echo "ICON_URL=$ICON_URL"
 
             echo "SCREENSHOTS_COUNT=$SCREENSHOTS_COUNT"
 
+            echo "SCREENSHOTS_JSON<<EOF"
+            echo "$SCREENSHOTS_JSON"
+            echo "EOF"
+
             echo "FEATURE_GRAPHIC_SELECTED=$FEATURE_GRAPHIC_SELECTED"
+            echo "FEATURE_GRAPHIC_URL=$FEATURE_GRAPHIC_URL"
 
             echo "PACKAGE_BASE=$PACKAGE_BASE"
             echo "RELEASE_TAG=$RELEASE_TAG"
@@ -391,8 +384,10 @@ jobs:
           echo "Login Required      : $LOGIN_REQUIRED"
           echo "Contact Email       : $CONTACT_EMAIL"
           echo "Icon Selected       : $ICON_SELECTED"
+          echo "Icon URL            : $ICON_URL"
           echo "Screenshots         : $SCREENSHOTS_COUNT"
           echo "Feature Graphic     : $FEATURE_GRAPHIC_SELECTED"
+          echo "Feature Graphic URL : $FEATURE_GRAPHIC_URL"
           echo "Release Tag         : $RELEASE_TAG"
           echo "APKS                : $APKS_FILE_NAME"
           echo "APK                 : $APK_FILE_NAME"
@@ -419,7 +414,6 @@ jobs:
 
           fi
 
-
           echo "AAB found:"
           ls -lh incoming/app-release.aab
 
@@ -436,7 +430,6 @@ jobs:
             -o bundletool.jar \
             https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
 
-
           if [ ! -s "bundletool.jar" ]; then
 
             echo "ERROR: bundletool download failed"
@@ -444,9 +437,7 @@ jobs:
 
           fi
 
-
           echo "bundletool version:"
-
           java -jar bundletool.jar version
 
 
@@ -464,28 +455,20 @@ jobs:
           if [ -z "$MASTER_PASSWORD" ]; then
 
             echo "ERROR: SGM_MASTER_PASSWORD secret is missing"
-
             exit 1
 
           fi
 
-
           mkdir -p signing
-
 
           KEY_FILE="signing/${PACKAGE_BASE}.jks"
 
           ENCRYPTED_KEY="signing/${PACKAGE_BASE}.jks.gpg"
 
 
-          # ------------------------------------------------------
-          # Existing encrypted key
-          # ------------------------------------------------------
-
           if [ -f "$ENCRYPTED_KEY" ]; then
 
             echo "Existing encrypted signing key found"
-
 
             gpg \
               --batch \
@@ -496,26 +479,17 @@ jobs:
               --output "$KEY_FILE" \
               "$ENCRYPTED_KEY"
 
-
             if [ ! -f "$KEY_FILE" ]; then
 
               echo "ERROR: Could not decrypt signing key"
-
               exit 1
 
             fi
 
-
-          # ------------------------------------------------------
-          # Create new signing key
-          # ------------------------------------------------------
-
           else
 
             echo "No encrypted signing key found"
-
             echo "Creating new signing key"
-
 
             keytool \
               -genkeypair \
@@ -530,9 +504,7 @@ jobs:
               -keypass "$MASTER_PASSWORD" \
               -dname "CN=SGM Store, OU=SGM, O=SGM, L=India, ST=Kerala, C=IN"
 
-
             echo "Encrypting signing key"
-
 
             gpg \
               --batch \
@@ -544,32 +516,22 @@ jobs:
               --output "$ENCRYPTED_KEY" \
               "$KEY_FILE"
 
-
             if [ ! -f "$ENCRYPTED_KEY" ]; then
 
               echo "ERROR: Signing key encryption failed"
-
               exit 1
 
             fi
-
 
             echo "Encrypted signing key created"
 
           fi
 
-
           chmod 600 "$KEY_FILE"
 
 
       # ==========================================================
-      # BUILD DEVICE APK SET
-      #
-      # This creates:
-      #
-      # com-sgmsoft-example.apks
-      #
-      # containing split APKs.
+      # BUILD APK SET
       # ==========================================================
 
       - name: Build APK Set
@@ -581,12 +543,9 @@ jobs:
 
           mkdir -p output
 
-
           KEY_FILE="signing/${PACKAGE_BASE}.jks"
 
-
           echo "Building APK Set..."
-
 
           java -Xmx4g \
             -jar bundletool.jar \
@@ -599,15 +558,12 @@ jobs:
             --key-pass="pass:${MASTER_PASSWORD}" \
             --overwrite
 
-
           if [ ! -f "output/${APKS_FILE_NAME}" ]; then
 
             echo "ERROR: APK Set was not created"
-
             exit 1
 
           fi
-
 
           echo ""
           echo "APK Set created:"
@@ -616,9 +572,6 @@ jobs:
 
       # ==========================================================
       # BUILD UNIVERSAL APK
-      #
-      # This creates a universal APK that can be installed
-      # directly on supported devices.
       # ==========================================================
 
       - name: Build Universal APK
@@ -630,9 +583,7 @@ jobs:
 
           KEY_FILE="signing/${PACKAGE_BASE}.jks"
 
-
           echo "Building Universal APK..."
-
 
           java -Xmx4g \
             -jar bundletool.jar \
@@ -646,15 +597,12 @@ jobs:
             --key-pass="pass:${MASTER_PASSWORD}" \
             --overwrite
 
-
           if [ ! -f "output/${UNIVERSAL_APKS_FILE_NAME}" ]; then
 
             echo "ERROR: Universal APK set was not created"
-
             exit 1
 
           fi
-
 
           echo ""
           echo "Universal APK set created:"
@@ -671,30 +619,24 @@ jobs:
 
           echo "Extracting universal.apk..."
 
-
           unzip -l \
             "output/${UNIVERSAL_APKS_FILE_NAME}"
-
 
           unzip -j \
             "output/${UNIVERSAL_APKS_FILE_NAME}" \
             "universal.apk" \
             -d output
 
-
           if [ ! -f "output/universal.apk" ]; then
 
             echo "ERROR: universal.apk not found"
-
             exit 1
 
           fi
 
-
           mv \
             "output/universal.apk" \
             "output/${APK_FILE_NAME}"
-
 
           echo ""
           echo "Universal APK:"
@@ -711,10 +653,8 @@ jobs:
 
           echo "Testing APK Set archive..."
 
-
           unzip -t \
             "output/${APKS_FILE_NAME}"
-
 
           echo ""
           echo "APK Set verification successful"
@@ -730,19 +670,15 @@ jobs:
 
           echo "Checking universal APK..."
 
-
           if [ ! -s "output/${APK_FILE_NAME}" ]; then
 
             echo "ERROR: Universal APK is empty"
-
             exit 1
 
           fi
 
-
           file \
             "output/${APK_FILE_NAME}"
-
 
           echo ""
           echo "Universal APK verification successful"
@@ -750,15 +686,6 @@ jobs:
 
       # ==========================================================
       # PUBLISH GITHUB RELEASE
-      #
-      # Release:
-      #
-      # app-com-sgmsoft-nuhameharin
-      #
-      # Assets:
-      #
-      # com-sgmsoft-nuhameharin.apks
-      # com-sgmsoft-nuhameharin.apk
       # ==========================================================
 
       - name: Publish GitHub Release
@@ -772,15 +699,10 @@ jobs:
           echo "$RELEASE_TAG"
 
 
-          # ------------------------------------------------------
-          # Existing release
-          # ------------------------------------------------------
-
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
 
             echo "Release already exists"
             echo "Updating existing release"
-
 
             gh release upload \
               "$RELEASE_TAG" \
@@ -788,21 +710,14 @@ jobs:
               "output/${APK_FILE_NAME}" \
               --clobber
 
-
             gh release edit \
               "$RELEASE_TAG" \
               --title "$APP_NAME $VERSION" \
               --notes "SGM Store package: ${PACKAGE_NAME}"
 
-
-          # ------------------------------------------------------
-          # New release
-          # ------------------------------------------------------
-
           else
 
             echo "Creating new release"
-
 
             gh release create \
               "$RELEASE_TAG" \
@@ -813,36 +728,12 @@ jobs:
 
           fi
 
-
           echo ""
           echo "GitHub Release published successfully"
 
 
       # ==========================================================
       # UPDATE apps.json
-      #
-      # Existing:
-      #
-      # name
-      # package
-      # version
-      # description
-      # download
-      # apks
-      #
-      # Added:
-      #
-      # category
-      # privacyPolicy
-      # ads
-      # targetAudience
-      # contentRating
-      # loginRequired
-      # whatsNew
-      # contactEmail
-      # icon
-      # screenshots
-      # featureGraphic
       # ==========================================================
 
       - name: Update apps.json
@@ -908,14 +799,29 @@ jobs:
               "false"
           )
 
-          screenshots_count = os.environ.get(
-              "SCREENSHOTS_COUNT",
-              "0"
+          icon_url = os.environ.get(
+              "ICON_URL",
+              ""
           )
 
           feature_graphic_selected = os.environ.get(
               "FEATURE_GRAPHIC_SELECTED",
               "false"
+          )
+
+          feature_graphic_url = os.environ.get(
+              "FEATURE_GRAPHIC_URL",
+              ""
+          )
+
+          screenshots_count = os.environ.get(
+              "SCREENSHOTS_COUNT",
+              "0"
+          )
+
+          screenshots_json = os.environ.get(
+              "SCREENSHOTS_JSON",
+              "[]"
           )
 
           release_tag = os.environ["RELEASE_TAG"]
@@ -927,10 +833,6 @@ jobs:
           repository = os.environ["GITHUB_REPOSITORY"]
 
 
-          # ------------------------------------------------------
-          # APK URL
-          # ------------------------------------------------------
-
           apk_url = (
               "https://github.com/"
               + repository
@@ -941,10 +843,6 @@ jobs:
           )
 
 
-          # ------------------------------------------------------
-          # APKS URL
-          # ------------------------------------------------------
-
           apks_url = (
               "https://github.com/"
               + repository
@@ -954,20 +852,6 @@ jobs:
               + apks_file_name
           )
 
-
-          print("")
-          print("======================================")
-          print("APK URL:")
-          print(apk_url)
-          print("")
-          print("APKS URL:")
-          print(apks_url)
-          print("======================================")
-
-
-          # ------------------------------------------------------
-          # Read existing apps.json
-          # ------------------------------------------------------
 
           if os.path.exists(APPS_FILE):
 
@@ -984,29 +868,16 @@ jobs:
               except Exception:
 
                   print("WARNING: Invalid apps.json")
-                  print("Creating a new catalog")
-
                   apps = []
 
           else:
-
-              print("apps.json does not exist")
-              print("Creating new catalog")
 
               apps = []
 
 
           if not isinstance(apps, list):
-
               apps = []
 
-
-          # ------------------------------------------------------
-          # Existing app data
-          #
-          # Keep existing icon/screenshots/feature graphic
-          # URLs if this workflow does not upload new images yet.
-          # ------------------------------------------------------
 
           old_app = None
 
@@ -1017,7 +888,6 @@ jobs:
                   if item.get("package") == package_name:
 
                       old_app = item
-
                       break
 
 
@@ -1047,18 +917,67 @@ jobs:
 
 
           # ------------------------------------------------------
-          # Convert screenshot count
+          # New icon
+          # ------------------------------------------------------
+
+          if icon_selected.lower() == "true" \
+              and icon_url:
+
+              final_icon = icon_url
+
+          else:
+
+              final_icon = old_icon
+
+
+          # ------------------------------------------------------
+          # New screenshots
           # ------------------------------------------------------
 
           try:
 
-              screenshot_count_int = int(
-                  screenshots_count
+              new_screenshots = json.loads(
+                  screenshots_json
               )
 
           except Exception:
 
-              screenshot_count_int = 0
+              new_screenshots = []
+
+
+          if not isinstance(
+              new_screenshots,
+              list
+          ):
+
+              new_screenshots = []
+
+
+          if len(new_screenshots) > 0:
+
+              final_screenshots = \
+                  new_screenshots
+
+          else:
+
+              final_screenshots = \
+                  old_screenshots
+
+
+          # ------------------------------------------------------
+          # New feature graphic
+          # ------------------------------------------------------
+
+          if feature_graphic_selected.lower() == "true" \
+              and feature_graphic_url:
+
+              final_feature_graphic = \
+                  feature_graphic_url
+
+          else:
+
+              final_feature_graphic = \
+                  old_feature_graphic
 
 
           # ------------------------------------------------------
@@ -1095,59 +1014,14 @@ jobs:
 
               "contactEmail": contact_email,
 
-              "icon": old_icon,
+              "icon": final_icon,
 
-              "screenshots": old_screenshots,
+              "screenshots": final_screenshots,
 
-              "featureGraphic": old_feature_graphic
+              "featureGraphic": final_feature_graphic
 
           }
 
-
-          # ------------------------------------------------------
-          # Image selection status
-          #
-          # Actual image upload is added separately.
-          # We don't replace an existing image URL with blank.
-          # ------------------------------------------------------
-
-          if icon_selected.lower() == "true":
-
-              print(
-                  "New icon selected in Android app."
-              )
-
-              print(
-                  "Actual image upload is not enabled yet."
-              )
-
-
-          if screenshot_count_int > 0:
-
-              print(
-                  "New screenshots selected:",
-                  screenshot_count_int
-              )
-
-              print(
-                  "Actual image upload is not enabled yet."
-              )
-
-
-          if feature_graphic_selected.lower() == "true":
-
-              print(
-                  "New feature graphic selected."
-              )
-
-              print(
-                  "Actual image upload is not enabled yet."
-              )
-
-
-          # ------------------------------------------------------
-          # Find existing package
-          # ------------------------------------------------------
 
           updated = False
 
@@ -1170,10 +1044,6 @@ jobs:
                   break
 
 
-          # ------------------------------------------------------
-          # Add new package
-          # ------------------------------------------------------
-
           if not updated:
 
               apps.append(new_app)
@@ -1183,10 +1053,6 @@ jobs:
                   package_name
               )
 
-
-          # ------------------------------------------------------
-          # Write apps.json
-          # ------------------------------------------------------
 
           with open(
               APPS_FILE,
@@ -1205,8 +1071,18 @@ jobs:
 
 
           print("")
-          print("Updated apps.json:")
+          print("======================================")
+          print("apps.json updated")
           print("")
+          print("Icon:")
+          print(final_icon)
+          print("")
+          print("Screenshots:")
+          print(final_screenshots)
+          print("")
+          print("Feature Graphic:")
+          print(final_feature_graphic)
+          print("======================================")
 
 
           PY
@@ -1230,7 +1106,6 @@ jobs:
 
 
           git add apps.json
-
 
           git add \
             "signing/${PACKAGE_BASE}.jks.gpg"

@@ -14,6 +14,11 @@ on:
         required: true
         type: string
 
+      developer:
+        description: "Developer name"
+        required: true
+        type: string
+
       package_name:
         description: "Package name"
         required: true
@@ -78,11 +83,13 @@ jobs:
         shell: bash
         env:
           EVENT_APP_NAME: ${{ github.event.client_payload.app_name }}
+          EVENT_DEVELOPER: ${{ github.event.client_payload.developer }}
           EVENT_PACKAGE_NAME: ${{ github.event.client_payload.package_name }}
           EVENT_VERSION: ${{ github.event.client_payload.version }}
           EVENT_DESCRIPTION: ${{ github.event.client_payload.description }}
 
           INPUT_APP_NAME: ${{ inputs.app_name }}
+          INPUT_DEVELOPER: ${{ inputs.developer }}
           INPUT_PACKAGE_NAME: ${{ inputs.package_name }}
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_DESCRIPTION: ${{ inputs.description }}
@@ -92,6 +99,7 @@ jobs:
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
 
             APP_NAME="$EVENT_APP_NAME"
+            DEVELOPER="$EVENT_DEVELOPER"
             PACKAGE_NAME="$EVENT_PACKAGE_NAME"
             VERSION="$EVENT_VERSION"
             DESCRIPTION="$EVENT_DESCRIPTION"
@@ -99,6 +107,7 @@ jobs:
           else
 
             APP_NAME="$INPUT_APP_NAME"
+            DEVELOPER="$INPUT_DEVELOPER"
             PACKAGE_NAME="$INPUT_PACKAGE_NAME"
             VERSION="$INPUT_VERSION"
             DESCRIPTION="$INPUT_DESCRIPTION"
@@ -112,6 +121,11 @@ jobs:
 
           if [ -z "$APP_NAME" ]; then
             echo "ERROR: App name is empty"
+            exit 1
+          fi
+          
+                     if [ -z "$DEVELOPER" ]; then
+            echo "ERROR: Developer name is empty"
             exit 1
           fi
 
@@ -189,6 +203,7 @@ jobs:
 
           {
             echo "APP_NAME=$APP_NAME"
+            echo "DEVELOPER=$DEVELOPER"
             echo "PACKAGE_NAME=$PACKAGE_NAME"
             echo "VERSION=$VERSION"
             echo "DESCRIPTION<<EOF"
@@ -205,6 +220,7 @@ jobs:
           echo ""
           echo "======================================"
           echo "App Name       : $APP_NAME"
+          
           echo "Package        : $PACKAGE_NAME"
           echo "Version        : $VERSION"
           echo "Release Tag    : $RELEASE_TAG"
@@ -707,6 +723,7 @@ jobs:
 
 
           app_name = os.environ["APP_NAME"]
+          developer = os.environ["DEVELOPER"]
           package_name = os.environ["PACKAGE_NAME"]
           version = os.environ["VERSION"]
           description = os.environ["DESCRIPTION"]
@@ -813,6 +830,7 @@ jobs:
           new_app = {
 
               "name": app_name,
+               "developer": developer,
 
               "package": package_name,
 

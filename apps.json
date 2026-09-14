@@ -4,7 +4,8 @@
     "developer": "SgmSoft",
     "package": "com.sgmsoft.nuhameharin",
     "version": "1.0",
-    "description": "Bug fix\nNew model\nNew design",
+    "description": "Nuha Meharin Best Android App",
+    "icon": "https://raw.githubusercontent.com/sgmide/sgmstore/main/sgmstore-assets/icons/com-sgmsoft-nuhameharin.png",
     "download": "https://github.com/sgmide/sgmstore/releases/download/app-com-sgmsoft-nuhameharin/com-sgmsoft-nuhameharin.apk",
     "apks": "https://github.com/sgmide/sgmstore/releases/download/app-com-sgmsoft-nuhameharin/com-sgmsoft-nuhameharin.apks",
     "size": "4.5 MB"

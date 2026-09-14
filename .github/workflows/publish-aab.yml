@@ -87,6 +87,7 @@ jobs:
           EVENT_PACKAGE_NAME: ${{ github.event.client_payload.package_name }}
           EVENT_VERSION: ${{ github.event.client_payload.version }}
           EVENT_DESCRIPTION: ${{ github.event.client_payload.description }}
+          EVENT_ICON: ${{ github.event.client_payload.icon }}
 
           INPUT_APP_NAME: ${{ inputs.app_name }}
           INPUT_DEVELOPER: ${{ inputs.developer }}
@@ -103,6 +104,7 @@ jobs:
             PACKAGE_NAME="$EVENT_PACKAGE_NAME"
             VERSION="$EVENT_VERSION"
             DESCRIPTION="$EVENT_DESCRIPTION"
+            ICON_URL="$EVENT_ICON"
 
           else
 
@@ -111,6 +113,7 @@ jobs:
             PACKAGE_NAME="$INPUT_PACKAGE_NAME"
             VERSION="$INPUT_VERSION"
             DESCRIPTION="$INPUT_DESCRIPTION"
+            ICON_URL=""
 
           fi
 
@@ -209,6 +212,7 @@ jobs:
             echo "DESCRIPTION<<EOF"
             echo "$DESCRIPTION"
             echo "EOF"
+            echo "ICON_URL=$ICON_URL"
             echo "PACKAGE_BASE=$PACKAGE_BASE"
             echo "RELEASE_TAG=$RELEASE_TAG"
             echo "APKS_FILE_NAME=$APKS_FILE_NAME"
@@ -727,8 +731,10 @@ jobs:
           package_name = os.environ["PACKAGE_NAME"]
           version = os.environ["VERSION"]
           description = os.environ["DESCRIPTION"]
+          icon_url = os.environ.get("ICON_URL", "")
 
           release_tag = os.environ["RELEASE_TAG"]
+          
 
           apk_file_name = os.environ["APK_FILE_NAME"]
           apks_file_name = os.environ["APKS_FILE_NAME"]
@@ -830,13 +836,16 @@ jobs:
           new_app = {
 
               "name": app_name,
-               "developer": developer,
+
+              "developer": developer,
 
               "package": package_name,
 
               "version": version,
 
               "description": description,
+
+              "icon": icon_url,
 
               "download": apk_url,
 
